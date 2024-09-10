@@ -1,16 +1,40 @@
 #!/usr/bin/env python
 
 from pathlib import Path
-from typing import Literal
 
 import numpy as np
 import pybullet as p
 import rospy
 from sensor_msgs.msg import JointState
 
+from fabric_world import world_dict_robot_frame
+
 NUM_ARM_JOINTS = 7
 NUM_HAND_JOINTS = 16
 BLUE_RGBA = [0, 0, 1, 0.5]
+RED_RGBA = [1, 0, 0, 0.2]
+
+
+def add_cuboid(halfExtents, position, orientation, rgbaColor=RED_RGBA):
+    # Create a visual shape for the cuboid
+    visualShapeId = p.createVisualShape(
+        shapeType=p.GEOM_BOX, halfExtents=halfExtents, rgbaColor=rgbaColor
+    )  # Red color
+
+    # Create a collision shape for the cuboid
+    collisionShapeId = p.createCollisionShape(
+        shapeType=p.GEOM_BOX, halfExtents=halfExtents
+    )
+
+    # Create the cuboid as a rigid body
+    cuboidId = p.createMultiBody(
+        baseMass=1,  # Mass of the cuboid
+        baseCollisionShapeIndex=collisionShapeId,
+        baseVisualShapeIndex=visualShapeId,
+        basePosition=position,
+        baseOrientation=orientation,
+    )
+    return cuboidId
 
 
 class VisualizationNode:
@@ -82,6 +106,24 @@ class VisualizationNode:
 
         # Set gravity for simulation
         p.setGravity(0, 0, -9.81)
+
+        # Draw the world
+        world_dict = world_dict_robot_frame
+        for object_name, object_dict in world_dict.items():
+            xyz_qxyzw = np.array([float(x) for x in object_dict["transform"].split()])
+            scaling = np.array([float(x) for x in object_dict["scaling"].split()])
+            assert len(xyz_qxyzw) == 7, f"xyz_qxyzw: {xyz_qxyzw}"
+            assert len(scaling) == 3, f"scaling: {scaling}"
+
+            half_extents = [x / 2 for x in scaling]
+            object_pos = xyz_qxyzw[:3]
+            object_quat_xyzw = xyz_qxyzw[3:]
+            add_cuboid(
+                halfExtents=half_extents,
+                position=object_pos,
+                orientation=object_quat_xyzw,
+            )
+
         return robot_id, robot_cmd_id
 
     def set_pybullet_camera(

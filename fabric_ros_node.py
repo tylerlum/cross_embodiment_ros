@@ -1,16 +1,17 @@
 #!/usr/bin/env python
 
-import rospy
-from sensor_msgs.msg import JointState
 import numpy as np
+import rospy
 import torch
 
 # Import from the fabrics_sim package
 from fabrics_sim.fabrics.kuka_allegro_pose_fabric import KukaAllegroPoseFabric
 from fabrics_sim.integrator.integrators import DisplacementIntegrator
-from fabrics_sim.utils.utils import initialize_warp, capture_fabric
+from fabrics_sim.utils.utils import capture_fabric, initialize_warp
 from fabrics_sim.worlds.world_mesh_model import WorldMeshesModel
+from sensor_msgs.msg import JointState
 
+from fabric_world import world_dict_robot_frame
 
 NUM_ARM_JOINTS = 7
 NUM_HAND_JOINTS = 16
@@ -96,46 +97,7 @@ class KukaFabricPublisher:
         initialize_warp(warp_cache_name="")
 
         # Set up the world model
-        THICKNESS = 0.02
-        HEIGHT = 1
-        self.fabric_world_dict = {
-            "right_wall": {
-                "env_index": "all",
-                "type": "box",
-                "scaling": f"0.9 {THICKNESS} {HEIGHT}",
-                "transform": f"0 0.37 {0.5 * HEIGHT} 0 0 0 1",  # x y z qx qy qz qw
-            },
-            "left_wall": {
-                "env_index": "all",
-                "type": "box",
-                "scaling": f"0.9 {THICKNESS} {HEIGHT}",
-                "transform": f"0 -0.37 {0.5 * HEIGHT} 0 0 0 1",  # x y z qx qy qz qw
-            },
-            "back_wall": {
-                "env_index": "all",
-                "type": "box",
-                "scaling": f"{THICKNESS} 0.74 {HEIGHT}",
-                "transform": f"-0.45 0 {0.5 * HEIGHT} 0 0 0 1",  # x y z qx qy qz qw
-            },
-            "front_wall": {
-                "env_index": "all",
-                "type": "box",
-                "scaling": f"{THICKNESS} 0.74 {HEIGHT}",
-                "transform": f"0.45 0 {0.5 * HEIGHT} 0 0 0 1",  # x y z qx qy qz qw
-            },
-            "table": {
-                "env_index": "all",
-                "type": "box",
-                "scaling": f"0.45 0.74 {THICKNESS}",
-                "transform": "0.225 0 0 0 0 0 1",  # x y z qx qy qz qw
-            },
-            "ceiling": {
-                "env_index": "all",
-                "type": "box",
-                "scaling": f"0.9 0.74 {THICKNESS}",
-                "transform": f"0 0 {HEIGHT} 0 0 0 1",  # x y z qx qy qz qw
-            },
-        }
+        self.fabric_world_dict = world_dict_robot_frame
         self.fabric_world_model = WorldMeshesModel(
             batch_size=self.num_envs,
             max_objects_per_env=20,
