@@ -46,11 +46,14 @@ class FakeRobotNode:
         )
 
         # State
-        self.iiwa_joint_state = DEFAULT_ARM_Q
-        self.allegro_joint_state = DEFAULT_HAND_Q
+        self.iiwa_joint_q = DEFAULT_ARM_Q
+        self.allegro_joint_q = DEFAULT_HAND_Q
+        self.iiwa_joint_qd = np.zeros(NUM_ARM_JOINTS)
+        self.allegro_joint_qd = np.zeros(NUM_HAND_JOINTS)
 
         # Set control rate to 60Hz
         self.rate_hz = 60
+        self.dt = 1 / self.rate_hz
         self.rate = rospy.Rate(self.rate_hz)
 
         # When only testing the arm, set this to False to ignore the Allegro hand
@@ -79,33 +82,50 @@ class FakeRobotNode:
             f"Updating PyBullet with iiwa joint commands: {self.iiwa_joint_cmd}, allegro joint commands: {self.allegro_joint_cmd}"
         )
 
-        delta_iiwa = self.iiwa_joint_cmd - self.iiwa_joint_state
-        delta_allegro = self.allegro_joint_cmd - self.allegro_joint_state
-        delta_iiwa_norm = np.linalg.norm(delta_iiwa)
-        delta_allegro_norm = np.linalg.norm(delta_allegro)
+        delta_iiwa = self.iiwa_joint_cmd - self.iiwa_joint_q
+        delta_allegro = self.allegro_joint_cmd - self.allegro_joint_q
 
-        MAX_DELTA_IIWA = 0.1
-        MAX_DELTA_ALLEGRO = 0.1
-        if delta_iiwa_norm > MAX_DELTA_IIWA:
-            delta_iiwa = MAX_DELTA_IIWA * delta_iiwa / delta_iiwa_norm
-        if delta_allegro_norm > MAX_DELTA_ALLEGRO:
-            delta_allegro = MAX_DELTA_ALLEGRO * delta_allegro / delta_allegro_norm
+        MODE: Literal["INTERPOLATE", "P_CONTROL"] = "INTERPOLATE"
+        if MODE == "INTERPOLATE":
+            delta_iiwa_norm = np.linalg.norm(delta_iiwa)
+            delta_allegro_norm = np.linalg.norm(delta_allegro)
 
-        self.iiwa_joint_state += delta_iiwa
-        self.allegro_joint_state += delta_allegro
+            MAX_DELTA_IIWA = 0.1
+            MAX_DELTA_ALLEGRO = 0.1
+            if delta_iiwa_norm > MAX_DELTA_IIWA:
+                delta_iiwa = MAX_DELTA_IIWA * delta_iiwa / delta_iiwa_norm
+            if delta_allegro_norm > MAX_DELTA_ALLEGRO:
+                delta_allegro = MAX_DELTA_ALLEGRO * delta_allegro / delta_allegro_norm
+
+            self.iiwa_joint_q += delta_iiwa
+            self.allegro_joint_q += delta_allegro
+            self.iiwa_joint_qd = np.zeros(NUM_ARM_JOINTS)
+            self.allegro_joint_qd = np.zeros(NUM_HAND_JOINTS)
+        elif MODE == "P_CONTROL":
+            P = 1
+            tau_iiwa = P * delta_iiwa
+            tau_allegro = P * delta_allegro
+            self.iiwa_joint_qd += tau_iiwa / self.dt
+            self.allegro_joint_qd += tau_allegro / self.dt
+            self.iiwa_joint_q += self.iiwa_joint_qd * self.dt
+            self.allegro_joint_q += self.allegro_joint_qd * self.dt
+        else:
+            raise ValueError(f"Invalid mode: {MODE}")
 
     def publish_joint_states(self):
         """Publish the current joint states from PyBullet."""
         iiwa_msg = JointState()
         iiwa_msg.header.stamp = rospy.Time.now()
         iiwa_msg.name = ["iiwa_joint_" + str(i) for i in range(NUM_ARM_JOINTS)]
-        iiwa_msg.position = self.iiwa_joint_state.tolist()
+        iiwa_msg.position = self.iiwa_joint_q.tolist()
+        iiwa_msg.velocity = self.iiwa_joint_qd.tolist()
         self.iiwa_pub.publish(iiwa_msg)
 
         allegro_msg = JointState()
         allegro_msg.header.stamp = rospy.Time.now()
         allegro_msg.name = ["allegro_joint_" + str(i) for i in range(NUM_HAND_JOINTS)]
-        allegro_msg.position = self.allegro_joint_state.tolist()
+        allegro_msg.position = self.allegro_joint_q.tolist()
+        allegro_msg.velocity = self.allegro_joint_qd.tolist()
         self.allegro_pub.publish(allegro_msg)
 
     def run(self):
