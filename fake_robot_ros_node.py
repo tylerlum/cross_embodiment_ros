@@ -4,13 +4,24 @@ from pathlib import Path
 from typing import Literal
 
 import numpy as np
-import pybullet as p
 import rospy
 from sensor_msgs.msg import JointState
 
 NUM_ARM_JOINTS = 7
 NUM_HAND_JOINTS = 16
-BLUE_RGBA = [0, 0, 1, 0.5]
+
+DEFAULT_ARM_Q = np.array(
+    [
+        0,
+        0,
+        0,
+        -1.57,
+        0,
+        1.57,
+        0,
+    ]
+)
+DEFAULT_HAND_Q = np.zeros(NUM_HAND_JOINTS)
 
 
 class FakeRobotNode:
@@ -18,7 +29,7 @@ class FakeRobotNode:
         # ROS setup
         rospy.init_node("fake_robot_ros_node")
 
-        # State
+        # ROS msgs
         self.iiwa_joint_cmd = None
         self.allegro_joint_cmd = None
 
@@ -34,13 +45,9 @@ class FakeRobotNode:
             "/allegro/joint_cmd", JointState, self.allegro_joint_cmd_callback
         )
 
-        # Initialize PyBullet
-        # Create a real robot (simulating real robot) and a command robot (visualizing commands)
-        rospy.loginfo("~" * 80)
-        rospy.loginfo("Initializing PyBullet")
-        self.robot_id, self.robot_cmd_id = self.initialize_pybullet()
-        rospy.loginfo("PyBullet initialized!")
-        rospy.loginfo("~" * 80)
+        # State
+        self.iiwa_joint_state = DEFAULT_ARM_Q
+        self.allegro_joint_state = DEFAULT_HAND_Q
 
         # Set control rate to 60Hz
         self.rate_hz = 60
@@ -52,123 +59,6 @@ class FakeRobotNode:
             rospy.logwarn("NOT WAITING FOR ALLEGRO CMD")
             self.allegro_joint_cmd = np.zeros(NUM_HAND_JOINTS)
 
-    def initialize_pybullet(self):
-        """Initialize PyBullet, set up camera, and load the robot URDF."""
-        p.connect(p.GUI)
-
-        # Load robot URDF with a fixed base
-        urdf_path = Path(
-            "/juno/u/tylerlum/github_repos/bidexhands_isaacgymenvs/assets/urdf/kuka_allegro_description/kuka_allegro.urdf"
-        )
-        assert urdf_path.exists(), f"URDF file not found: {urdf_path}"
-        robot_id = p.loadURDF(str(urdf_path), useFixedBase=True)
-        robot_cmd_id = p.loadURDF(str(urdf_path), useFixedBase=True)
-
-        # Make the robot blue
-        # Change the color of each link (including the base)
-        num_joints = p.getNumJoints(robot_id)
-        for link_index in range(-1, num_joints):  # -1 is for the base
-            p.changeVisualShape(robot_cmd_id, link_index, rgbaColor=BLUE_RGBA)
-
-        # Set the robot to a default pose
-        DEFAULT_ARM_Q = np.array(
-            [
-                0,
-                0,
-                0,
-                -1.57,
-                0,
-                1.57,
-                0,
-            ]
-        )
-        DEFAULT_HAND_Q = np.zeros(NUM_HAND_JOINTS)
-        assert DEFAULT_ARM_Q.shape == (NUM_ARM_JOINTS,)
-        assert DEFAULT_HAND_Q.shape == (NUM_HAND_JOINTS,)
-        DEFAULT_Q = np.concatenate([DEFAULT_ARM_Q, DEFAULT_HAND_Q])
-        self.set_robot_state(robot_id, DEFAULT_Q)
-        self.set_robot_state(robot_cmd_id, DEFAULT_Q)
-
-        # Set the camera parameters
-        self.set_pybullet_camera()
-
-        # Set gravity for simulation
-        p.setGravity(0, 0, -9.81)
-        return robot_id, robot_cmd_id
-
-    def set_pybullet_camera(
-        self,
-        cameraDistance=2,
-        cameraYaw=90,
-        cameraPitch=-15,
-        cameraTargetPosition=[0, 0, 0],
-    ):
-        """Configure the PyBullet camera view."""
-        p.resetDebugVisualizerCamera(
-            cameraDistance=cameraDistance,
-            cameraYaw=cameraYaw,
-            cameraPitch=cameraPitch,
-            cameraTargetPosition=cameraTargetPosition,
-        )
-
-    def set_robot_state(self, robot, q: np.ndarray) -> None:
-        assert q.shape == (23,)
-
-        num_total_joints = p.getNumJoints(robot)
-        assert num_total_joints == 27, f"num_total_joints: {num_total_joints}"
-        actuatable_joint_idxs = [
-            i
-            for i in range(num_total_joints)
-            if p.getJointInfo(robot, i)[2] != p.JOINT_FIXED
-        ]
-        num_actuatable_joints = len(actuatable_joint_idxs)
-        assert (
-            num_actuatable_joints == 23
-        ), f"num_actuatable_joints: {num_actuatable_joints}"
-
-        for i, joint_idx in enumerate(actuatable_joint_idxs):
-            p.resetJointState(robot, joint_idx, q[i])
-
-    def get_robot_state(self, robot) -> np.ndarray:
-        num_total_joints = p.getNumJoints(robot)
-        assert num_total_joints == 27, f"num_total_joints: {num_total_joints}"
-        actuatable_joint_idxs = [
-            i
-            for i in range(num_total_joints)
-            if p.getJointInfo(robot, i)[2] != p.JOINT_FIXED
-        ]
-        num_actuatable_joints = len(actuatable_joint_idxs)
-        assert (
-            num_actuatable_joints == 23
-        ), f"num_actuatable_joints: {num_actuatable_joints}"
-
-        q = np.zeros(num_actuatable_joints)
-        for i, joint_idx in enumerate(actuatable_joint_idxs):
-            q[i] = p.getJointState(robot, joint_idx)[0]  # Joint position
-        return q
-
-    def set_robot_cmd(self, robot, q: np.ndarray) -> None:
-        num_total_joints = p.getNumJoints(robot)
-        assert num_total_joints == 27, f"num_total_joints: {num_total_joints}"
-        actuatable_joint_idxs = [
-            i
-            for i in range(num_total_joints)
-            if p.getJointInfo(robot, i)[2] != p.JOINT_FIXED
-        ]
-        num_actuatable_joints = len(actuatable_joint_idxs)
-        assert (
-            num_actuatable_joints == 23
-        ), f"num_actuatable_joints: {num_actuatable_joints}"
-
-        for i, actuatable_joint_idx in enumerate(actuatable_joint_idxs):
-            p.setJointMotorControl2(
-                self.robot_id,
-                actuatable_joint_idx,
-                p.POSITION_CONTROL,
-                q[i],
-                force=1,
-            )
-
     def iiwa_joint_cmd_callback(self, msg: JointState):
         """Callback to update the commanded joint positions."""
         self.iiwa_joint_cmd = np.array(msg.position)
@@ -177,7 +67,7 @@ class FakeRobotNode:
         """Callback to update the commanded joint positions."""
         self.allegro_joint_cmd = np.array(msg.position)
 
-    def update_pybullet(self):
+    def update_joint_states(self):
         """Update the PyBullet simulation with the commanded joint positions."""
         if self.iiwa_joint_cmd is None or self.allegro_joint_cmd is None:
             rospy.loginfo(
@@ -189,51 +79,33 @@ class FakeRobotNode:
             f"Updating PyBullet with iiwa joint commands: {self.iiwa_joint_cmd}, allegro joint commands: {self.allegro_joint_cmd}"
         )
 
-        # Command Robot: Set the commanded joint positions
-        q_cmd = np.concatenate([self.iiwa_joint_cmd, self.allegro_joint_cmd])
-        self.set_robot_state(self.robot_cmd_id, q_cmd)
+        delta_iiwa = self.iiwa_joint_cmd - self.iiwa_joint_state
+        delta_allegro = self.allegro_joint_cmd - self.allegro_joint_state
+        delta_iiwa_norm = np.linalg.norm(delta_iiwa)
+        delta_allegro_norm = np.linalg.norm(delta_allegro)
 
-        # Real Robot: Interpolate between the current joint positions and the commanded joint positions
-        MODE: Literal["interpolate", "position_control"] = "interpolate"
-        if MODE == "interpolate":
-            # Interpolate between the current joint positions and the commanded joint positions for the real robot
-            # Physics was being weird and hard to tune, so we're just going to do a simple interpolation
-            q_state = self.get_robot_state(self.robot_id)
+        MAX_DELTA_IIWA = 0.1
+        MAX_DELTA_ALLEGRO = 0.1
+        if delta_iiwa_norm > MAX_DELTA_IIWA:
+            delta_iiwa = MAX_DELTA_IIWA * delta_iiwa / delta_iiwa_norm
+        if delta_allegro_norm > MAX_DELTA_ALLEGRO:
+            delta_allegro = MAX_DELTA_ALLEGRO * delta_allegro / delta_allegro_norm
 
-            delta_q = q_cmd - q_state
-            delta_q_norm = np.linalg.norm(delta_q)
-
-            MAX_DELTA_Q_NORM = 0.1
-            if delta_q_norm > MAX_DELTA_Q_NORM:
-                delta_q = MAX_DELTA_Q_NORM * delta_q / delta_q_norm
-            self.set_robot_state(self.robot_id, q_state + delta_q)
-        elif MODE == "position_control":
-            # Use self.iiwa_joint_cmd as P target for the robot
-            # Did not work well, physics issues
-            self.set_robot_cmd(self.robot_id, q_cmd)
-            p.stepSimulation()
-        else:
-            raise ValueError(f"Invalid MODE: {MODE}")
+        self.iiwa_joint_state += delta_iiwa
+        self.allegro_joint_state += delta_allegro
 
     def publish_joint_states(self):
         """Publish the current joint states from PyBullet."""
-        q = self.get_robot_state(self.robot_id)
-        assert q.shape == (NUM_HAND_JOINTS + NUM_ARM_JOINTS,), f"q.shape: {q.shape}"
-
         iiwa_msg = JointState()
         iiwa_msg.header.stamp = rospy.Time.now()
         iiwa_msg.name = ["iiwa_joint_" + str(i) for i in range(NUM_ARM_JOINTS)]
-        iiwa_msg.position = [q[i] for i in range(NUM_ARM_JOINTS)]
+        iiwa_msg.position = self.iiwa_joint_state.tolist()
         self.iiwa_pub.publish(iiwa_msg)
 
         allegro_msg = JointState()
         allegro_msg.header.stamp = rospy.Time.now()
-        allegro_msg.name = [
-            "allegro_joint_" + str(i) for i in range(NUM_HAND_JOINTS)
-        ]
-        allegro_msg.position = [
-            q[i] for i in range(NUM_ARM_JOINTS, NUM_HAND_JOINTS + NUM_ARM_JOINTS)
-        ]
+        allegro_msg.name = ["allegro_joint_" + str(i) for i in range(NUM_HAND_JOINTS)]
+        allegro_msg.position = self.allegro_joint_state.tolist()
         self.allegro_pub.publish(allegro_msg)
 
     def run(self):
@@ -241,8 +113,8 @@ class FakeRobotNode:
         while not rospy.is_shutdown():
             start_time = rospy.Time.now()
 
-            # Update the PyBullet simulation with the current joint commands
-            self.update_pybullet()
+            # Update the joint states
+            self.update_joint_states()
 
             # Publish the current joint states to ROS
             self.publish_joint_states()
@@ -251,10 +123,9 @@ class FakeRobotNode:
             before_sleep_time = rospy.Time.now()
             self.rate.sleep()
             after_sleep_time = rospy.Time.now()
-            rospy.loginfo(f"Max rate: {1 / (before_sleep_time - start_time).to_sec()} Hz ({(before_sleep_time - start_time).to_sec() * 1000}ms), Actual rate: {1 / (after_sleep_time - start_time).to_sec()} Hz")
-
-        # Disconnect from PyBullet when shutting down
-        p.disconnect()
+            rospy.loginfo(
+                f"Max rate: {1 / (before_sleep_time - start_time).to_sec()} Hz ({(before_sleep_time - start_time).to_sec() * 1000}ms), Actual rate: {1 / (after_sleep_time - start_time).to_sec()} Hz"
+            )
 
 
 if __name__ == "__main__":

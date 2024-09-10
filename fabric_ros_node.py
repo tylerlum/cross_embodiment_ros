@@ -21,10 +21,9 @@ class KukaFabricPublisher:
         # Initialize ROS node
         rospy.init_node("kuka_fabric_publisher", anonymous=True)
 
-        # State
+        # ROS msgs
         self.iiwa_joint_state = None
         self.allegro_joint_state = None
-        self.loop_count = 0
 
         # Create a ROS publisher
         self.iiwa_cmd_pub = rospy.Publisher(
@@ -52,6 +51,8 @@ class KukaFabricPublisher:
 
         # Setup the Fabric
         self._setup_fabric_action_space()
+
+        self.loop_count = 0
 
         # When only testing the arm, set this to False to ignore the Allegro hand
         self.WAIT_FOR_ALLEGRO_STATE = False
@@ -227,9 +228,7 @@ class KukaFabricPublisher:
         )
 
         # Initialize random targets for palm and hand
-        fabric_hand_target = (
-            fabric_hand_maxs - fabric_hand_mins
-        ) * torch.rand(
+        fabric_hand_target = (fabric_hand_maxs - fabric_hand_mins) * torch.rand(
             self.num_envs, fabric_hand_maxs.numel(), device=self.device
         ) + fabric_hand_mins
         return fabric_hand_target
@@ -241,12 +240,8 @@ class KukaFabricPublisher:
             # Update fabric targets for palm and hand
             SWITCH_TARGET_FREQ = 120
             if self.loop_count % SWITCH_TARGET_FREQ == 0:
-                self.fabric_palm_target.copy_(
-                    self.sample_palm_target()
-                )
-                self.fabric_hand_target.copy_(
-                    self.sample_hand_target()
-                )
+                self.fabric_palm_target.copy_(self.sample_palm_target())
+                self.fabric_hand_target.copy_(self.sample_hand_target())
 
             # Step the fabric using the captured CUDA graph
             self.fabric_cuda_graph.replay()
@@ -295,14 +290,22 @@ class KukaFabricPublisher:
             iiwa_msg.velocity = (
                 self.fabric_qd.cpu().numpy()[0, :NUM_ARM_JOINTS].tolist()
             )  # Velocities from fabric
-            iiwa_msg.effort = [0.0] * NUM_ARM_JOINTS  # Set efforts to zero for simplicity
+            iiwa_msg.effort = [
+                0.0
+            ] * NUM_ARM_JOINTS  # Set efforts to zero for simplicity
             allegro_msg.position = (
-                self.fabric_q.cpu().numpy()[0, NUM_ARM_JOINTS:NUM_ARM_JOINTS+NUM_HAND_JOINTS].tolist()
+                self.fabric_q.cpu()
+                .numpy()[0, NUM_ARM_JOINTS : NUM_ARM_JOINTS + NUM_HAND_JOINTS]
+                .tolist()
             )  # Use the joint positions from the fabric
             allegro_msg.velocity = (
-                self.fabric_qd.cpu().numpy()[0, NUM_ARM_JOINTS:NUM_ARM_JOINTS+NUM_HAND_JOINTS].tolist()
+                self.fabric_qd.cpu()
+                .numpy()[0, NUM_ARM_JOINTS : NUM_ARM_JOINTS + NUM_HAND_JOINTS]
+                .tolist()
             )
-            allegro_msg.effort = [0.0] * NUM_HAND_JOINTS  # Set efforts to zero for simplicity
+            allegro_msg.effort = [
+                0.0
+            ] * NUM_HAND_JOINTS  # Set efforts to zero for simplicity
 
             # Publish the joint states
             self.iiwa_cmd_pub.publish(iiwa_msg)

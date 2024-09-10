@@ -18,7 +18,7 @@ class VisualizationNode:
         # ROS setup
         rospy.init_node("visualization_ros_node")
 
-        # State
+        # ROS msgs
         self.iiwa_joint_cmd = None
         self.allegro_joint_cmd = None
         self.iiwa_joint_state = None
@@ -69,17 +69,7 @@ class VisualizationNode:
             p.changeVisualShape(robot_cmd_id, link_index, rgbaColor=BLUE_RGBA)
 
         # Set the robot to a default pose
-        DEFAULT_ARM_Q = np.array(
-            [
-                0,
-                0,
-                0,
-                -1.57,
-                0,
-                1.57,
-                0,
-            ]
-        )
+        DEFAULT_ARM_Q = np.zeros(NUM_ARM_JOINTS)
         DEFAULT_HAND_Q = np.zeros(NUM_HAND_JOINTS)
         assert DEFAULT_ARM_Q.shape == (NUM_ARM_JOINTS,)
         assert DEFAULT_HAND_Q.shape == (NUM_HAND_JOINTS,)
@@ -205,7 +195,9 @@ class VisualizationNode:
             before_sleep_time = rospy.Time.now()
             self.rate.sleep()
             after_sleep_time = rospy.Time.now()
-            rospy.loginfo(f"Max rate: {1 / (before_sleep_time - start_time).to_sec()} Hz ({(before_sleep_time - start_time).to_sec() * 1000}ms), Actual rate: {1 / (after_sleep_time - start_time).to_sec()} Hz")
+            rospy.loginfo(
+                f"Max rate: {1 / (before_sleep_time - start_time).to_sec()} Hz ({(before_sleep_time - start_time).to_sec() * 1000}ms), Actual rate: {1 / (after_sleep_time - start_time).to_sec()} Hz"
+            )
 
         # Disconnect from PyBullet when shutting down
         p.disconnect()
