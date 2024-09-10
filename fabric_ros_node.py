@@ -10,6 +10,7 @@ from fabrics_sim.integrator.integrators import DisplacementIntegrator
 from fabrics_sim.utils.utils import capture_fabric, initialize_warp
 from fabrics_sim.worlds.world_mesh_model import WorldMeshesModel
 from sensor_msgs.msg import JointState
+from std_msgs.msg import Float64MultiArray
 
 from fabric_world import world_dict_robot_frame
 
@@ -25,8 +26,10 @@ class IiwaAllegroFabricPublisher:
         # ROS msgs
         self.iiwa_joint_state = None
         self.allegro_joint_state = None
+        self.palm_target = None
+        self.hand_target = None
 
-        # Create a ROS publisher
+        # Publisher and subscriber
         self.iiwa_cmd_pub = rospy.Publisher(
             "/iiwa/joint_cmd", JointState, queue_size=10
         )
@@ -38,6 +41,12 @@ class IiwaAllegroFabricPublisher:
         )
         self.allegro_sub = rospy.Subscriber(
             "/allegro/joint_states", JointState, self.allegro_joint_state_callback
+        )
+        self.palm_target_sub = rospy.Subscriber(
+            "/palm_target", Float64MultiArray, self.palm_target_callback
+        )
+        self.hand_target_sub = rospy.Subscriber(
+            "/hand_target", Float64MultiArray, self.hand_target_callback
         )
 
         # ROS rate
@@ -53,8 +62,6 @@ class IiwaAllegroFabricPublisher:
         # Setup the Fabric
         self._setup_fabric_action_space()
 
-        self.loop_count = 0
-
         # When only testing the arm, set this to False to ignore the Allegro hand
         self.WAIT_FOR_ALLEGRO_STATE = False
         if not self.WAIT_FOR_ALLEGRO_STATE:
@@ -65,12 +72,14 @@ class IiwaAllegroFabricPublisher:
             if (
                 self.iiwa_joint_state is not None
                 and self.allegro_joint_state is not None
+                and self.palm_target is not None
+                and self.hand_target is not None
             ):
-                rospy.loginfo("Got iiwa and allegro joint states")
+                rospy.loginfo("Got iiwa and allegro joint states and targets")
                 break
 
             rospy.loginfo(
-                f"Waiting: iiwa_joint_state: {self.iiwa_joint_state}, allegro_joint_state: {self.allegro_joint_state}"
+                f"Waiting: iiwa_joint_state: {self.iiwa_joint_state}, allegro_joint_state: {self.allegro_joint_state}, palm_target: {self.palm_target}, hand_target: {self.hand_target}"
             )
             rospy.sleep(0.1)
 
@@ -91,6 +100,12 @@ class IiwaAllegroFabricPublisher:
 
     def allegro_joint_state_callback(self, msg: JointState) -> None:
         self.allegro_joint_state = np.array(msg.position)
+
+    def palm_target_callback(self, msg: Float64MultiArray) -> None:
+        self.palm_target = torch.tensor(msg.data, device=self.device).unsqueeze(0)
+
+    def hand_target_callback(self, msg: Float64MultiArray) -> None:
+        self.hand_target = torch.tensor(msg.data, device=self.device).unsqueeze(0)
 
     def _setup_fabric_action_space(self):
         # Initialize warp
@@ -118,8 +133,12 @@ class IiwaAllegroFabricPublisher:
         self.fabric_integrator = DisplacementIntegrator(self.fabric)
 
         # Initialize random targets for palm and hand
-        self.fabric_hand_target = self.sample_hand_target()
-        self.fabric_palm_target = self.sample_palm_target()
+        self.fabric_hand_target = torch.zeros(
+            self.num_envs, 5, device="cuda", dtype=torch.float
+        )
+        self.fabric_palm_target = torch.zeros(
+            self.num_envs, 6, device="cuda", dtype=torch.float
+        )
 
         # Joint states
         self.fabric_q = torch.zeros(
@@ -196,14 +215,17 @@ class IiwaAllegroFabricPublisher:
         return fabric_hand_target
 
     def run(self):
+        assert self.iiwa_joint_state is not None
+        assert self.allegro_joint_state is not None
+        assert self.palm_target is not None
+        assert self.hand_target is not None
+
         while not rospy.is_shutdown():
             start_time = rospy.Time.now()
 
             # Update fabric targets for palm and hand
-            SWITCH_TARGET_FREQ = 120
-            if self.loop_count % SWITCH_TARGET_FREQ == 0:
-                self.fabric_palm_target.copy_(self.sample_palm_target())
-                self.fabric_hand_target.copy_(self.sample_hand_target())
+            self.fabric_palm_target.copy_(self.palm_target)
+            self.fabric_hand_target.copy_(self.hand_target)
 
             # Step the fabric using the captured CUDA graph
             self.fabric_cuda_graph.replay()
@@ -280,8 +302,6 @@ class IiwaAllegroFabricPublisher:
             rospy.loginfo(
                 f"Max rate: {1 / (before_sleep_time - start_time).to_sec()} Hz ({(before_sleep_time - start_time).to_sec() * 1000}ms), Actual rate: {1 / (after_sleep_time - start_time).to_sec()} Hz"
             )
-
-            self.loop_count += 1
 
 
 if __name__ == "__main__":
