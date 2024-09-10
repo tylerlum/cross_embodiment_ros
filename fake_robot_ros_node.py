@@ -70,12 +70,8 @@ class FakeRobotNode:
             ]
         )
         DEFAULT_HAND_Q = np.zeros(NUM_HAND_JOINTS)
-        assert DEFAULT_ARM_Q.shape == (
-            NUM_ARM_JOINTS,
-        ), f"{DEFAULT_ARM_Q.shape} != ({NUM_ARM_JOINTS},)"
-        assert DEFAULT_HAND_Q.shape == (
-            NUM_HAND_JOINTS,
-        ), f"{DEFAULT_HAND_Q.shape} != ({NUM_HAND_JOINTS},)"
+        assert DEFAULT_ARM_Q.shape == (NUM_ARM_JOINTS,)
+        assert DEFAULT_HAND_Q.shape == (NUM_HAND_JOINTS,)
         DEFAULT_Q = np.concatenate([DEFAULT_ARM_Q, DEFAULT_HAND_Q])
         self.set_robot_state(robot_id, DEFAULT_Q)
         self.set_robot_state(robot_cmd_id, DEFAULT_Q)
@@ -138,6 +134,28 @@ class FakeRobotNode:
             q[i] = p.getJointState(robot, joint_idx)[0]  # Joint position
         return q
 
+    def set_robot_cmd(self, robot, q: np.ndarray) -> None:
+        num_total_joints = p.getNumJoints(robot)
+        assert num_total_joints == 27, f"num_total_joints: {num_total_joints}"
+        actuatable_joint_idxs = [
+            i
+            for i in range(num_total_joints)
+            if p.getJointInfo(robot, i)[2] != p.JOINT_FIXED
+        ]
+        num_actuatable_joints = len(actuatable_joint_idxs)
+        assert (
+            num_actuatable_joints == 23
+        ), f"num_actuatable_joints: {num_actuatable_joints}"
+
+        for i, actuatable_joint_idx in enumerate(actuatable_joint_idxs):
+            p.setJointMotorControl2(
+                self.robot_id,
+                actuatable_joint_idx,
+                p.POSITION_CONTROL,
+                q[i],
+                force=1,
+            )
+
     def iiwa_joint_cmd_callback(self, msg):
         """Callback to update the commanded joint positions."""
         self.iiwa_joint_cmd = np.array(msg.position)
@@ -182,15 +200,7 @@ class FakeRobotNode:
             self.set_robot_state(self.robot_id, q_state + delta_q)
         elif MODE == "position_control":
             # Use self.iiwa_joint_cmd as P target for the robot
-            for joint_index in range(NUM_ARM_JOINTS):
-                p.setJointMotorControl2(
-                    self.robot_id,
-                    joint_index,
-                    p.POSITION_CONTROL,
-                    self.iiwa_joint_cmd[joint_index],
-                    force=1,
-                )
-
+            self.set_robot_cmd(self.robot_id, q_cmd)
             p.stepSimulation()
         else:
             raise ValueError(f"Invalid MODE: {MODE}")
