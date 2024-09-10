@@ -1,8 +1,9 @@
-import rospy
 import copy
-import numpy as np
-from sensor_msgs.msg import JointState
 import math
+
+import numpy as np
+import rospy
+from sensor_msgs.msg import JointState
 
 INIT_JOINT_POS = None
 

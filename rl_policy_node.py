@@ -1,12 +1,15 @@
 #!/usr/bin/env python
 
+from typing import Optional, Tuple
+
 import numpy as np
 import rospy
 import torch
-from std_msgs.msg import Float64MultiArray, MultiArrayDimension, MultiArrayLayout
-from sensor_msgs.msg import JointState
 from geometry_msgs.msg import Pose
-from isaacgymenvs.tasks.cross_embodiment.rl_player import RLPlayer
+from sensor_msgs.msg import JointState
+from std_msgs.msg import Float64MultiArray, MultiArrayDimension, MultiArrayLayout
+
+# from isaacgymenvs.tasks.cross_embodiment.rl_player import RLPlayer
 
 
 class RLPolicyNode:
@@ -30,11 +33,21 @@ class RLPolicyNode:
         self.allegro_joint_cmd_msg = None
 
         # Subscribers
-        self.object_pose_sub = rospy.Subscriber("/object_pose", Pose, self.object_pose_callback)
-        self.iiwa_joint_state_sub = rospy.Subscriber("/iiwa/joint_states", JointState, self.iiwa_joint_state_callback)
-        self.iiwa_joint_cmd_sub = rospy.Subscriber("/iiwa/joint_cmd", JointState, self.iiwa_joint_cmd_callback)
-        self.allegro_joint_state_sub = rospy.Subscriber("/allegro/joint_states", JointState, self.allegro_joint_state_callback)
-        self.allegro_joint_cmd_sub = rospy.Subscriber("/allegro/joint_cmd", JointState, self.allegro_joint_cmd_callback)
+        self.object_pose_sub = rospy.Subscriber(
+            "/object_pose", Pose, self.object_pose_callback
+        )
+        self.iiwa_joint_state_sub = rospy.Subscriber(
+            "/iiwa/joint_states", JointState, self.iiwa_joint_state_callback
+        )
+        self.iiwa_joint_cmd_sub = rospy.Subscriber(
+            "/iiwa/joint_cmd", JointState, self.iiwa_joint_cmd_callback
+        )
+        self.allegro_joint_state_sub = rospy.Subscriber(
+            "/allegro/joint_states", JointState, self.allegro_joint_state_callback
+        )
+        self.allegro_joint_cmd_sub = rospy.Subscriber(
+            "/allegro/joint_cmd", JointState, self.allegro_joint_cmd_callback
+        )
 
         # ROS rate (60Hz)
         self.rate = rospy.Rate(60)  # 60 Hz
@@ -47,19 +60,25 @@ class RLPolicyNode:
         self.checkpoint_path = "/path/to/checkpoint.pt"  # Update this path
 
         # Create the RL player
-        self.player = RLPlayer(
-            num_observations=self.num_observations,
-            num_actions=self.num_actions,
-            config_path=self.config_path,
-            checkpoint_path=self.checkpoint_path,
-            device=self.device,
-        )
+        # self.player = RLPlayer(
+        #     num_observations=self.num_observations,
+        #     num_actions=self.num_actions,
+        #     config_path=self.config_path,
+        #     checkpoint_path=self.checkpoint_path,
+        #     device=self.device,
+        # )
 
         # Define limits for palm and hand targets
         self.palm_mins = torch.tensor([0, -0.4, 0.3, 0, 0, 0], device=self.device)
-        self.palm_maxs = torch.tensor([0.5, 0.4, 0.5, 2 * np.pi, 2 * np.pi, 2 * np.pi], device=self.device)
-        self.hand_mins = torch.tensor([0.2475, -0.3286, -0.7238, -0.0192, -0.5532], device=self.device)
-        self.hand_maxs = torch.tensor([3.8336, 3.0025, 0.8977, 1.0243, 0.0629], device=self.device)
+        self.palm_maxs = torch.tensor(
+            [0.5, 0.4, 0.5, 2 * np.pi, 2 * np.pi, 2 * np.pi], device=self.device
+        )
+        self.hand_mins = torch.tensor(
+            [0.2475, -0.3286, -0.7238, -0.0192, -0.5532], device=self.device
+        )
+        self.hand_maxs = torch.tensor(
+            [3.8336, 3.0025, 0.8977, 1.0243, 0.0629], device=self.device
+        )
 
     def object_pose_callback(self, msg: Pose):
         self.object_pose_msg = msg
@@ -76,7 +95,7 @@ class RLPolicyNode:
     def allegro_joint_cmd_callback(self, msg: JointState):
         self.allegro_joint_cmd_msg = msg
 
-    def create_observation(self) -> torch.Tensor:
+    def create_observation(self) -> Optional[torch.Tensor]:
         # Ensure all messages are received before processing
         if (
             self.iiwa_joint_state_msg is None
@@ -98,24 +117,39 @@ class RLPolicyNode:
         allegro_command = np.array(self.allegro_joint_cmd_msg.position)
 
         object_position = np.array(
-            [self.object_pose_msg.position.x, self.object_pose_msg.position.y, self.object_pose_msg.position.z]
+            [
+                self.object_pose_msg.position.x,
+                self.object_pose_msg.position.y,
+                self.object_pose_msg.position.z,
+            ]
         )
         object_orientation = np.array(
-            [self.object_pose_msg.orientation.x, self.object_pose_msg.orientation.y, self.object_pose_msg.orientation.z, self.object_pose_msg.orientation.w]
+            [
+                self.object_pose_msg.orientation.x,
+                self.object_pose_msg.orientation.y,
+                self.object_pose_msg.orientation.z,
+                self.object_pose_msg.orientation.w,
+            ]
         )
 
         # Concatenate all observations into a 1D tensor
         observation = np.concatenate(
             [
-                iiwa_position, iiwa_velocity, iiwa_command,
-                allegro_position, allegro_velocity, allegro_command,
-                object_position, object_orientation
+                iiwa_position,
+                iiwa_velocity,
+                iiwa_command,
+                allegro_position,
+                allegro_velocity,
+                allegro_command,
+                object_position,
+                object_orientation,
             ]
         )
-        
-        return torch.tensor(observation, dtype=torch.float32).unsqueeze(0).to(self.device)
+        assert observation.shape == (self.num_observations,), f"{observation.shape}"
 
-    def rescale_action(self, action: torch.Tensor) -> (torch.Tensor, torch.Tensor):
+        return torch.from_numpy(observation).float().unsqueeze(0).to(self.device)
+
+    def rescale_action(self, action: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
         # Rescale the normalized actions from [-1, 1] to the actual target ranges
         palm_target = (self.palm_maxs - self.palm_mins) * action[:, :6] + self.palm_mins
         hand_target = (self.hand_maxs - self.hand_mins) * action[:, 6:] + self.hand_mins
@@ -147,7 +181,12 @@ class RLPolicyNode:
 
             if obs is not None:
                 # Get the normalized action from the RL player
-                normalized_action = self.player.get_normalized_action(obs=obs)
+                # normalized_action = self.player.get_normalized_action(obs=obs)
+                normalized_action = torch.zeros(1, self.num_actions, device=self.device)
+                assert normalized_action.shape == (
+                    1,
+                    self.num_actions,
+                ), f"{normalized_action.shape}"
 
                 # Rescale the action to get palm and hand targets
                 palm_target, hand_target = self.rescale_action(normalized_action)
