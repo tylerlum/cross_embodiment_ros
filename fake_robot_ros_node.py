@@ -20,12 +20,19 @@ class FakeRobotNode:
 
         # Publisher and subscriber
         self.iiwa_pub = rospy.Publisher("/iiwa/joint_states", JointState, queue_size=10)
+        self.allegro_pub = rospy.Publisher(
+            "/allegro/joint_states", JointState, queue_size=10
+        )
         self.iiwa_cmd_sub = rospy.Subscriber(
             "/iiwa/joint_cmd", JointState, self.iiwa_joint_cmd_callback
         )
+        self.allegro_cmd_sub = rospy.Subscriber(
+            "/allegro/joint_cmd", JointState, self.allegro_joint_cmd_callback
+        )
 
-        # Store the latest iiwa joint command
+        # Store the latest joint command
         self.iiwa_joint_cmd = None
+        self.allegro_joint_cmd = None
 
         # Initialize PyBullet
         # Create a real robot (simulating real robot) and a command robot (visualizing commands)
@@ -38,6 +45,12 @@ class FakeRobotNode:
         # Set control rate to 60Hz
         self.rate_hz = 60
         self.rate = rospy.Rate(self.rate_hz)
+
+        # When only testing the arm, set this to False to ignore the Allegro hand
+        self.WAIT_FOR_ALLEGRO_CMD = False
+        if not self.WAIT_FOR_ALLEGRO_CMD:
+            rospy.logwarn("NOT WAITING FOR ALLEGRO CMD")
+            self.allegro_joint_cmd = np.zeros(NUM_HAND_JOINTS)
 
     def initialize_pybullet(self):
         """Initialize PyBullet, set up camera, and load the robot URDF."""
@@ -156,21 +169,31 @@ class FakeRobotNode:
                 force=1,
             )
 
-    def iiwa_joint_cmd_callback(self, msg):
+    def iiwa_joint_cmd_callback(self, msg: JointState):
         """Callback to update the commanded joint positions."""
         self.iiwa_joint_cmd = np.array(msg.position)
 
+    def allegro_joint_cmd_callback(self, msg: JointState):
+        """Callback to update the commanded joint positions."""
+        self.allegro_joint_cmd = np.array(msg.position)
+
     def update_pybullet(self):
         """Update the PyBullet simulation with the commanded joint positions."""
-        if self.iiwa_joint_cmd is None:
-            rospy.loginfo("Still waiting for joint command...")
+        if self.iiwa_joint_cmd is None or self.allegro_joint_cmd is None:
+            rospy.loginfo(
+                f"Waiting: iiwa_joint_cmd: {self.iiwa_joint_cmd}, allegro_joint_cmd: {self.allegro_joint_cmd}"
+            )
             return
 
-        rospy.loginfo(f"Updating PyBullet with joint command: {self.iiwa_joint_cmd}")
-        # Use self.iiwa_joint_cmd as the actual joint positions for the command robot
-        q_cmd = np.concatenate([self.iiwa_joint_cmd, np.zeros(NUM_HAND_JOINTS)])
+        rospy.loginfo(
+            f"Updating PyBullet with iiwa joint commands: {self.iiwa_joint_cmd}, allegro joint commands: {self.allegro_joint_cmd}"
+        )
+
+        # Command Robot: Set the commanded joint positions
+        q_cmd = np.concatenate([self.iiwa_joint_cmd, self.allegro_joint_cmd])
         self.set_robot_state(self.robot_cmd_id, q_cmd)
 
+        # Real Robot: Interpolate between the current joint positions and the commanded joint positions
         MODE: Literal["interpolate", "position_control"] = "interpolate"
         if MODE == "interpolate":
             # Interpolate between the current joint positions and the commanded joint positions for the real robot
@@ -180,26 +203,13 @@ class FakeRobotNode:
             delta_q = q_cmd - q_state
             delta_q_norm = np.linalg.norm(delta_q)
 
-            MAX_QD_RAD_PER_SEC = np.deg2rad(90)  # 90 deg/s limit
-            MAX_DELTA_Q_NORM = MAX_QD_RAD_PER_SEC / self.rate_hz
-            # from live_plotter import FastLivePlotter
-            from live_plotter import LivePlotter
-
-            if not hasattr(self, "plotter"):
-                # self.plotter = FastLivePlotter(titles=["Delta Q Norm"], xlabels=["Time"], ylabels=["Norm"])
-                self.plotter = LivePlotter(
-                    default_titles=["Delta Q Norm"],
-                    default_xlabels=["Time"],
-                    default_ylabels=["Norm"],
-                )
-                self.delta_q_norms = []
-            self.delta_q_norms.append(delta_q_norm)
-            self.plotter.plot(y_data_list=[np.array(self.delta_q_norms)])
+            MAX_DELTA_Q_NORM = 0.1
             if delta_q_norm > MAX_DELTA_Q_NORM:
                 delta_q = MAX_DELTA_Q_NORM * delta_q / delta_q_norm
             self.set_robot_state(self.robot_id, q_state + delta_q)
         elif MODE == "position_control":
             # Use self.iiwa_joint_cmd as P target for the robot
+            # Did not work well, physics issues
             self.set_robot_cmd(self.robot_id, q_cmd)
             p.stepSimulation()
         else:
@@ -208,13 +218,23 @@ class FakeRobotNode:
     def publish_joint_states(self):
         """Publish the current joint states from PyBullet."""
         q = self.get_robot_state(self.robot_id)
+        assert q.shape == (NUM_HAND_JOINTS + NUM_ARM_JOINTS,), f"q.shape: {q.shape}"
 
-        arm_joint_states = JointState()
-        arm_joint_states.header.stamp = rospy.Time.now()
-        arm_joint_states.name = ["joint_" + str(i) for i in range(NUM_ARM_JOINTS)]
-        arm_joint_states.position = [q[i] for i in range(NUM_ARM_JOINTS)]
+        iiwa_joint_states = JointState()
+        iiwa_joint_states.header.stamp = rospy.Time.now()
+        iiwa_joint_states.name = ["iiwa_joint_" + str(i) for i in range(NUM_ARM_JOINTS)]
+        iiwa_joint_states.position = [q[i] for i in range(NUM_ARM_JOINTS)]
+        self.iiwa_pub.publish(iiwa_joint_states)
 
-        self.iiwa_pub.publish(arm_joint_states)
+        allegro_joint_states = JointState()
+        allegro_joint_states.header.stamp = rospy.Time.now()
+        allegro_joint_states.name = [
+            "allegro_joint_" + str(i) for i in range(NUM_HAND_JOINTS)
+        ]
+        allegro_joint_states.position = [
+            q[i] for i in range(NUM_ARM_JOINTS, NUM_HAND_JOINTS + NUM_ARM_JOINTS)
+        ]
+        self.allegro_pub.publish(allegro_joint_states)
 
     def run(self):
         """Main loop to run the node, update simulation, and publish joint states."""
