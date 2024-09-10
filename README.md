@@ -23,3 +23,22 @@ graph LR
     style B fill:#bbf,stroke:#333,stroke-width:2px,color:#000
     style C fill:#bfb,stroke:#333,stroke-width:2px,color:#000
     style D fill:#ffd,stroke:#333,stroke-width:2px,color:#000
+```
+
+```mermaid
+graph LR
+    Camera[Camera] -->|/camera/color/image_raw| SAM[SAM2]
+    Camera -->|/camera/color/image_raw| FP[FoundationPose]
+    Camera -->|/camera/aligned_depth_to_color/image_raw| FP
+    SAM -->|/sam2_mask| FPE[FoundationPoseEvaluator]
+    SAM -->|/sam2_mask| FP
+    FP -->|/object_pose| FPE
+    FP -->|/object_pose| RL[RL Policy]
+    FPE -->|/reset| FP
+
+    style Camera fill:#ffd,stroke:#333,stroke-width:2px,color:#000
+    style SAM fill:#ffd,stroke:#333,stroke-width:2px,color:#000
+    style FP fill:#ffd,stroke:#333,stroke-width:2px,color:#000
+    style FPE fill:#ffd,stroke:#333,stroke-width:2px,color:#000
+    style RL fill:#f9f,stroke:#333,stroke-width:2px,color:#000
+```
