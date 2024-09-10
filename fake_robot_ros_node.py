@@ -18,6 +18,10 @@ class FakeRobotNode:
         # ROS setup
         rospy.init_node("fake_robot_ros_node")
 
+        # State
+        self.iiwa_joint_cmd = None
+        self.allegro_joint_cmd = None
+
         # Publisher and subscriber
         self.iiwa_pub = rospy.Publisher("/iiwa/joint_states", JointState, queue_size=10)
         self.allegro_pub = rospy.Publisher(
@@ -29,10 +33,6 @@ class FakeRobotNode:
         self.allegro_cmd_sub = rospy.Subscriber(
             "/allegro/joint_cmd", JointState, self.allegro_joint_cmd_callback
         )
-
-        # Store the latest joint command
-        self.iiwa_joint_cmd = None
-        self.allegro_joint_cmd = None
 
         # Initialize PyBullet
         # Create a real robot (simulating real robot) and a command robot (visualizing commands)
@@ -239,6 +239,8 @@ class FakeRobotNode:
     def run(self):
         """Main loop to run the node, update simulation, and publish joint states."""
         while not rospy.is_shutdown():
+            start_time = rospy.Time.now()
+
             # Update the PyBullet simulation with the current joint commands
             self.update_pybullet()
 
@@ -246,7 +248,10 @@ class FakeRobotNode:
             self.publish_joint_states()
 
             # Sleep to maintain the loop rate
+            before_sleep_time = rospy.Time.now()
             self.rate.sleep()
+            after_sleep_time = rospy.Time.now()
+            rospy.loginfo(f"Max rate: {1 / (before_sleep_time - start_time).to_sec()} Hz ({(before_sleep_time - start_time).to_sec() * 1000}ms), Actual rate: {1 / (after_sleep_time - start_time).to_sec()} Hz")
 
         # Disconnect from PyBullet when shutting down
         p.disconnect()
