@@ -1,10 +1,12 @@
 #!/usr/bin/env python
 
 from pathlib import Path
-import rospy
-import pybullet as p
-from sensor_msgs.msg import JointState
+from typing import Literal
+
 import numpy as np
+import pybullet as p
+import rospy
+from sensor_msgs.msg import JointState
 
 NUM_ARM_JOINTS = 7
 NUM_HAND_JOINTS = 16
@@ -34,7 +36,8 @@ class FakeRobotNode:
         rospy.loginfo("~" * 80)
 
         # Set control rate to 60Hz
-        self.rate = rospy.Rate(60)
+        self.rate_hz = 60
+        self.rate = rospy.Rate(self.rate_hz)
 
     def initialize_pybullet(self):
         """Initialize PyBullet, set up camera, and load the robot URDF."""
@@ -66,26 +69,7 @@ class FakeRobotNode:
                 0,
             ]
         )
-        DEFAULT_HAND_Q = np.array(
-            [
-                0.0,
-                0.3,
-                0.3,
-                0.3,
-                0.0,
-                0.3,
-                0.3,
-                0.3,
-                0.0,
-                0.3,
-                0.3,
-                0.3,
-                0.72383858,
-                0.60147215,
-                0.33795027,
-                0.60845138,
-            ]
-        )
+        DEFAULT_HAND_Q = np.zeros(NUM_HAND_JOINTS)
         assert DEFAULT_ARM_Q.shape == (
             NUM_ARM_JOINTS,
         ), f"{DEFAULT_ARM_Q.shape} != ({NUM_ARM_JOINTS},)"
@@ -160,29 +144,26 @@ class FakeRobotNode:
 
     def update_pybullet(self):
         """Update the PyBullet simulation with the commanded joint positions."""
-        if self.iiwa_joint_cmd is not None:
-            # Use self.iiwa_joint_cmd as the actual joint positions for the command robot
-            q_cmd = np.concatenate([self.iiwa_joint_cmd, np.zeros(NUM_HAND_JOINTS)])
-            self.set_robot_state(self.robot_cmd_id, q_cmd)
+        if self.iiwa_joint_cmd is None:
+            rospy.loginfo("Still waiting for joint command...")
+            return
 
-            # # Use self.iiwa_joint_cmd as P target for the robot
-            # for joint_index in range(NUM_ARM_JOINTS):
-            #     p.setJointMotorControl2(
-            #         self.robot_id,
-            #         joint_index,
-            #         p.POSITION_CONTROL,
-            #         self.iiwa_joint_cmd[joint_index],
-            #         force=1,
-            #     )
+        rospy.loginfo(f"Updating PyBullet with joint command: {self.iiwa_joint_cmd}")
+        # Use self.iiwa_joint_cmd as the actual joint positions for the command robot
+        q_cmd = np.concatenate([self.iiwa_joint_cmd, np.zeros(NUM_HAND_JOINTS)])
+        self.set_robot_state(self.robot_cmd_id, q_cmd)
 
-            # p.stepSimulation()
-
+        MODE: Literal["interpolate", "position_control"] = "interpolate"
+        if MODE == "interpolate":
             # Interpolate between the current joint positions and the commanded joint positions for the real robot
-            # Physics was being weird
+            # Physics was being weird and hard to tune, so we're just going to do a simple interpolation
             q_state = self.get_robot_state(self.robot_id)
+
             delta_q = q_cmd - q_state
             delta_q_norm = np.linalg.norm(delta_q)
-            max_delta_q_norm = 0.1
+
+            MAX_QD_RAD_PER_SEC = np.deg2rad(90)  # 90 deg/s limit
+            MAX_DELTA_Q_NORM = MAX_QD_RAD_PER_SEC / self.rate_hz
             # from live_plotter import FastLivePlotter
             from live_plotter import LivePlotter
 
@@ -196,11 +177,23 @@ class FakeRobotNode:
                 self.delta_q_norms = []
             self.delta_q_norms.append(delta_q_norm)
             self.plotter.plot(y_data_list=[np.array(self.delta_q_norms)])
-            if delta_q_norm > max_delta_q_norm:
-                delta_q = max_delta_q_norm * delta_q / delta_q_norm
+            if delta_q_norm > MAX_DELTA_Q_NORM:
+                delta_q = MAX_DELTA_Q_NORM * delta_q / delta_q_norm
             self.set_robot_state(self.robot_id, q_state + delta_q)
+        elif MODE == "position_control":
+            # Use self.iiwa_joint_cmd as P target for the robot
+            for joint_index in range(NUM_ARM_JOINTS):
+                p.setJointMotorControl2(
+                    self.robot_id,
+                    joint_index,
+                    p.POSITION_CONTROL,
+                    self.iiwa_joint_cmd[joint_index],
+                    force=1,
+                )
+
+            p.stepSimulation()
         else:
-            rospy.loginfo("Still waiting for joint command...")
+            raise ValueError(f"Invalid MODE: {MODE}")
 
     def publish_joint_states(self):
         """Publish the current joint states from PyBullet."""
