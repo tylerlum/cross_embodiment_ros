@@ -220,21 +220,21 @@ class FakeRobotNode:
         q = self.get_robot_state(self.robot_id)
         assert q.shape == (NUM_HAND_JOINTS + NUM_ARM_JOINTS,), f"q.shape: {q.shape}"
 
-        iiwa_joint_states = JointState()
-        iiwa_joint_states.header.stamp = rospy.Time.now()
-        iiwa_joint_states.name = ["iiwa_joint_" + str(i) for i in range(NUM_ARM_JOINTS)]
-        iiwa_joint_states.position = [q[i] for i in range(NUM_ARM_JOINTS)]
-        self.iiwa_pub.publish(iiwa_joint_states)
+        iiwa_msg = JointState()
+        iiwa_msg.header.stamp = rospy.Time.now()
+        iiwa_msg.name = ["iiwa_joint_" + str(i) for i in range(NUM_ARM_JOINTS)]
+        iiwa_msg.position = [q[i] for i in range(NUM_ARM_JOINTS)]
+        self.iiwa_pub.publish(iiwa_msg)
 
-        allegro_joint_states = JointState()
-        allegro_joint_states.header.stamp = rospy.Time.now()
-        allegro_joint_states.name = [
+        allegro_msg = JointState()
+        allegro_msg.header.stamp = rospy.Time.now()
+        allegro_msg.name = [
             "allegro_joint_" + str(i) for i in range(NUM_HAND_JOINTS)
         ]
-        allegro_joint_states.position = [
+        allegro_msg.position = [
             q[i] for i in range(NUM_ARM_JOINTS, NUM_HAND_JOINTS + NUM_ARM_JOINTS)
         ]
-        self.allegro_pub.publish(allegro_joint_states)
+        self.allegro_pub.publish(allegro_msg)
 
     def run(self):
         """Main loop to run the node, update simulation, and publish joint states."""
