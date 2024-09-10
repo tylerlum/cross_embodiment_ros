@@ -17,10 +17,10 @@ NUM_ARM_JOINTS = 7
 NUM_HAND_JOINTS = 16
 
 
-class KukaFabricPublisher:
+class IiwaAllegroFabricPublisher:
     def __init__(self):
         # Initialize ROS node
-        rospy.init_node("kuka_fabric_publisher", anonymous=True)
+        rospy.init_node("iiwa_allegro_fabric_publisher", anonymous=True)
 
         # ROS msgs
         self.iiwa_joint_state = None
@@ -286,7 +286,7 @@ class KukaFabricPublisher:
 
 if __name__ == "__main__":
     try:
-        kuka_fabric_publisher = KukaFabricPublisher()
-        kuka_fabric_publisher.run()
+        iiwa_fabric_publisher = IiwaAllegroFabricPublisher()
+        iiwa_fabric_publisher.run()
     except rospy.ROSInterruptException:
         pass
