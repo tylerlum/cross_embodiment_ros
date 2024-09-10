@@ -84,7 +84,7 @@ class FakeRobotNode:
         delta_iiwa = self.iiwa_joint_cmd - self.iiwa_joint_q
         delta_allegro = self.allegro_joint_cmd - self.allegro_joint_q
 
-        MODE: Literal["INTERPOLATE", "P_CONTROL"] = "INTERPOLATE"
+        MODE: Literal["INTERPOLATE", "PD_CONTROL"] = "INTERPOLATE"
         if MODE == "INTERPOLATE":
             delta_iiwa_norm = np.linalg.norm(delta_iiwa)
             delta_allegro_norm = np.linalg.norm(delta_allegro)
@@ -100,12 +100,18 @@ class FakeRobotNode:
             self.allegro_joint_q += delta_allegro
             self.iiwa_joint_qd = np.zeros(NUM_ARM_JOINTS)
             self.allegro_joint_qd = np.zeros(NUM_HAND_JOINTS)
-        elif MODE == "P_CONTROL":
-            P = 1
-            tau_iiwa = P * delta_iiwa
-            tau_allegro = P * delta_allegro
-            self.iiwa_joint_qd += tau_iiwa / self.dt
-            self.allegro_joint_qd += tau_allegro / self.dt
+        elif MODE == "PD_CONTROL":
+            P = 10
+            D = 0
+            iiwa_qd_cmd = 0
+            allegro_qd_cmd = 0
+            delta_iiwa_qd = iiwa_qd_cmd - self.iiwa_joint_qd
+            delta_allegro_qd = allegro_qd_cmd - self.allegro_joint_qd
+
+            iiwa_qdd = P * delta_iiwa + D * delta_iiwa_qd
+            allegro_qdd = P * delta_allegro + D * delta_allegro_qd
+            self.iiwa_joint_qd += iiwa_qdd * self.dt
+            self.allegro_joint_qd += allegro_qdd * self.dt
             self.iiwa_joint_q += self.iiwa_joint_qd * self.dt
             self.allegro_joint_q += self.allegro_joint_qd * self.dt
         else:
