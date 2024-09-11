@@ -131,6 +131,45 @@ def visualize_transform(
         )
         return lines
 
+def create_urdf(obj_path: Path) -> Path:
+    assert obj_path.suffix == ".obj"
+    filename = obj_path.name
+    parent_folder = obj_path.parent
+    urdf_path = parent_folder / f"{obj_path.stem}.urdf"
+    urdf_text = f"""<?xml version="0.0" ?>
+<robot name="model.urdf">
+  <link name="baseLink">
+    <contact>
+      <lateral_friction value="0.8"/>
+      <rolling_friction value="0.001"/>g
+      <contact_cfm value="0.0"/>
+      <contact_erp value="1.0"/>
+    </contact>
+    <inertial>
+    <origin rpy="0 0 0" xyz="0.01 0.0 0.01"/>
+       <mass value=".066"/>
+       <inertia ixx="1e-3" ixy="0" ixz="0" iyy="1e-3" iyz="0" izz="1e-3"/>
+    </inertial>
+    <visual>
+      <geometry>
+        <mesh filename="{filename}" scale="1 1 1"/>
+      </geometry>
+      <material name="white">
+        <color rgba="1. 1. 1. 1."/>
+      </material>
+    </visual>
+    <collision>
+      <geometry>
+        <mesh filename="{filename}" scale="1 1 1"/>
+      </geometry>
+    </collision>
+  </link>
+</robot>"""
+    with urdf_path.open("w") as f:
+        f.write(urdf_text)
+    return urdf_path
+
+
 
 class VisualizationNode:
     def __init__(self):
@@ -178,12 +217,20 @@ class VisualizationNode:
         p.connect(p.GUI)
 
         # Load robot URDF with a fixed base
-        urdf_path = Path(
+        robot_urdf_path = Path(
             "/juno/u/tylerlum/github_repos/bidexhands_isaacgymenvs/assets/urdf/kuka_allegro_description/kuka_allegro.urdf"
         )
-        assert urdf_path.exists(), f"URDF file not found: {urdf_path}"
-        robot_id = p.loadURDF(str(urdf_path), useFixedBase=True)
-        robot_cmd_id = p.loadURDF(str(urdf_path), useFixedBase=True)
+        assert robot_urdf_path.exists(), f"robot_urdf_path not found: {robot_urdf_path}"
+        robot_id = p.loadURDF(str(robot_urdf_path), useFixedBase=True)
+        robot_cmd_id = p.loadURDF(str(robot_urdf_path), useFixedBase=True)
+
+        # Load the scene mesh
+        scene_urdf_path = create_urdf(
+            Path(
+                "/juno/u/tylerlum/Downloads/kuka_table/new_origin_7/kuka_table_change_orientation.obj"
+            )
+        )
+        scene_id = p.loadURDF(str(scene_urdf_path), useFixedBase=True)
 
         # Make the robot blue
         # Change the color of each link (including the base)
@@ -391,6 +438,13 @@ class VisualizationNode:
             rotation_matrix=R.from_quat(robot_cmd_palm_quat).as_matrix(),
             lines=self.hand_cmd_lines,
         )
+
+        # Log to debug palm position and orientation in robot frame
+        rospy.loginfo(f"robot_palm_com = {robot_palm_com}")
+        rospy.loginfo(f"robot_palm_quat = {robot_palm_quat}")
+        robot_palm_euler_zyx = R.from_quat(robot_palm_quat).as_euler("zyx", degrees=False)
+        rospy.loginfo(f"robot_palm_euler_zyx = {robot_palm_euler_zyx}")
+
 
     def run(self):
         """Main loop to run the node, update simulation, and publish joint states."""

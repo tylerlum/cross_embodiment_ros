@@ -20,7 +20,8 @@ class FakePolicyNode:
         )
 
         # ROS rate (60Hz)
-        self.rate = rospy.Rate(60)  # 60 Hz
+        self.rate_hz = 60
+        self.rate = rospy.Rate(self.rate_hz)
 
         # Number of environments (batch size)
         self.num_envs = 1
@@ -30,7 +31,8 @@ class FakePolicyNode:
 
         # Step counter for switching targets every 120 steps (i.e., every 2 seconds)
         self.loop_count = 0
-        self.SWITCH_TARGET_FREQ = 120
+        self.SWITCH_TARGET_FREQ_SECONDS = 5
+        self.SWITCH_TARGET_FREQ = self.SWITCH_TARGET_FREQ_SECONDS * self.rate_hz
 
     def sample_palm_target(self) -> torch.Tensor:
         # x forward, y left, z up
@@ -40,7 +42,7 @@ class FakePolicyNode:
         )
         palm_target[:, 0] = (
             torch.FloatTensor(self.num_envs)
-            .uniform_(0, 0.5)
+            .uniform_(0.1, 0.6)
             .to(device=palm_target.device)
         )
         palm_target[:, 1] = (
@@ -50,12 +52,26 @@ class FakePolicyNode:
         )
         palm_target[:, 2] = (
             torch.FloatTensor(self.num_envs)
-            .uniform_(0.3, 0.5)
+            .uniform_(0.1, 0.6)
             .to(device=palm_target.device)
         )
-        palm_target[:, 3:6] = (
-            torch.FloatTensor(self.num_envs, 3)
-            .uniform_(0, 2 * np.pi)
+        DEFAULT_EULER_Z = -1.56854046
+        DEFAULT_EULER_Y = 0.78539692
+        DEFAULT_EULER_X = 1.56854046
+        DELTA = 0.1
+        palm_target[:, 3] = (
+            torch.FloatTensor(self.num_envs)
+            .uniform_(DEFAULT_EULER_Z - DELTA, DEFAULT_EULER_Z + DELTA)
+            .to(device=palm_target.device)
+        )
+        palm_target[:, 4] = (
+            torch.FloatTensor(self.num_envs)
+            .uniform_(DEFAULT_EULER_Y - DELTA, DEFAULT_EULER_Y + DELTA)
+            .to(device=palm_target.device)
+        )
+        palm_target[:, 5] = (
+            torch.FloatTensor(self.num_envs)
+            .uniform_(DEFAULT_EULER_X - DELTA, DEFAULT_EULER_X + DELTA)
             .to(device=palm_target.device)
         )
         return palm_target
