@@ -4,7 +4,8 @@ ROS Noetic code for cross embodiment gap project
 
 Real Nodes:
 * `fabric_ros_node.py`: Subscribes to `/iiwa/joint_states` to initialize fabric, subscribes to `/palm_target` and `/hand_target`, publishes to `/iiwa/joint_cmd`
-* `visualization_ros_node.py`: Subscribes to `/iiwa/joint_states`, `/iiwa/joint_cmd`, and `/palm_target`. Visualizes all these things for debugging
+* `rl_policy_node.py`: Subscribes to `/iiwa/joint_states`, `/iiwa/joint_cmd`, and `/object_pose`. Publishes to `/palm_target` and `/hand_target`
+* `visualization_ros_node.py`: Subscribes to `/iiwa/joint_states`, `/iiwa/joint_cmd`, `/palm_target`, and `/object_pose`. Visualizes all these things for debugging
 
 Dummy Nodes for testing:
 * `fake_robot_ros_node.py`: Pretends to be real robot. Publishes `/iiwa/joint_states` and subscribes to `/iiwa/joint_cmd`
@@ -41,4 +42,15 @@ graph LR
     style FP fill:#ffd,stroke:#333,stroke-width:2px,color:#000
     style FPE fill:#ffd,stroke:#333,stroke-width:2px,color:#000
     style RL fill:#f9f,stroke:#333,stroke-width:2px,color:#000
+```
+
+```mermaid
+graph LR
+    O[Other] -->|"/iiwa/joint_states"| V[Visualization]
+    O -->|"/iiwa/joint_cmd"| V
+    O -->|"/palm_target"| V
+    O -->|"/object_pose"| V
+
+    style O fill:#f9f,stroke:#333,stroke-width:2px,color:#000
+    style V fill:#ffd,stroke:#333,stroke-width:2px,color:#000
 ```
