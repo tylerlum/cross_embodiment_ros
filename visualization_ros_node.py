@@ -9,6 +9,8 @@ import rospy
 from scipy.spatial.transform import Rotation as R
 from sensor_msgs.msg import JointState
 from std_msgs.msg import Float64MultiArray
+from geometry_msgs.msg import Pose
+
 
 from fabric_world import world_dict_robot_frame
 
@@ -131,6 +133,7 @@ def visualize_transform(
         )
         return lines
 
+
 def create_urdf(obj_path: Path) -> Path:
     assert obj_path.suffix == ".obj"
     filename = obj_path.name
@@ -170,7 +173,6 @@ def create_urdf(obj_path: Path) -> Path:
     return urdf_path
 
 
-
 class VisualizationNode:
     def __init__(self):
         # ROS setup
@@ -182,6 +184,7 @@ class VisualizationNode:
         self.iiwa_joint_state = None
         self.allegro_joint_state = None
         self.palm_target = None
+        self.object_pose = None
 
         # Subscribers
         self.iiwa_sub = rospy.Subscriber(
@@ -198,6 +201,9 @@ class VisualizationNode:
         )
         self.palm_target_sub = rospy.Subscriber(
             "/palm_target", Float64MultiArray, self.palm_target_callback
+        )
+        self.object_pose_sub = rospy.Subscriber(
+            "/object_pose", Pose, self.object_pose_callback
         )
 
         # Initialize PyBullet
@@ -231,6 +237,22 @@ class VisualizationNode:
             )
         )
         scene_id = p.loadURDF(str(scene_urdf_path), useFixedBase=True)
+
+        # Load the object mesh
+        FAR_AWAY_OBJECT_POSITION = np.zeros(3) + 100  # Far away
+        object_urdf_path = create_urdf(
+            Path(
+                # "/juno/u/oliviayl/repos/cross_embodiment/FoundationPose/kiri_meshes/blueblock/3DModel.obj"
+                # "/juno/u/oliviayl/repos/cross_embodiment/FoundationPose/kiri_meshes/snackbox/3DModel.obj"
+                # "/juno/u/oliviayl/repos/cross_embodiment/FoundationPose/kiri_meshes/woodblock/3DModel.obj"
+                # "/juno/u/oliviayl/repos/cross_embodiment/FoundationPose/kiri_meshes/cup_ycbv/textured.obj"
+                "/juno/u/tylerlum/github_repos/cross_embodiment_ros/kiri_meshes/cup_ycbv/textured.obj"
+            )
+        )
+        self.object_id = p.loadURDF(str(object_urdf_path), useFixedBase=True)
+        p.resetBasePositionAndOrientation(
+            self.object_id, FAR_AWAY_OBJECT_POSITION, [0, 0, 0, 1]
+        )
 
         # Make the robot blue
         # Change the color of each link (including the base)
@@ -372,6 +394,22 @@ class VisualizationNode:
         """Callback to update the current hand target."""
         self.palm_target = np.array(msg.data)
 
+    def object_pose_callback(self, msg: Pose):
+        """ "Callback to update the current object pose."""
+        xyz = np.array([msg.position.x, msg.position.y, msg.position.z])
+        quat_xyzw = np.array(
+            [
+                msg.orientation.x,
+                msg.orientation.y,
+                msg.orientation.z,
+                msg.orientation.w,
+            ]
+        )
+        latest_pose = np.eye(4)
+        latest_pose[:3, 3] = xyz
+        latest_pose[:3, :3] = R.from_quat(quat_xyzw).as_matrix()
+        self.object_pose = latest_pose
+
     def update_pybullet(self):
         """Update the PyBullet simulation with the commanded joint positions."""
         if self.iiwa_joint_cmd is None:
@@ -403,6 +441,13 @@ class VisualizationNode:
             palm_target = np.zeros(6) + 100  # Far away
         else:
             palm_target = self.palm_target
+
+        if self.object_pose is None:
+            rospy.logwarn("object_pose is None")
+            object_pose = np.eye(4)
+            object_pose[:3, 3] = np.zeros(3) + 100  # Far away
+        else:
+            object_pose = self.object_pose
 
         # Command Robot: Set the commanded joint positions
         q_cmd = np.concatenate([iiwa_joint_cmd, allegro_joint_cmd])
@@ -442,9 +487,28 @@ class VisualizationNode:
         # Log to debug palm position and orientation in robot frame
         rospy.loginfo(f"robot_palm_com = {robot_palm_com}")
         rospy.loginfo(f"robot_palm_quat = {robot_palm_quat}")
-        robot_palm_euler_zyx = R.from_quat(robot_palm_quat).as_euler("zyx", degrees=False)
+        robot_palm_euler_zyx = R.from_quat(robot_palm_quat).as_euler(
+            "zyx", degrees=False
+        )
         rospy.loginfo(f"robot_palm_euler_zyx = {robot_palm_euler_zyx}")
 
+        # Update the object pose
+        # Object pose is in camera frame
+        # We want it in world frame = robot frame
+        # T_R_C just guessed for now
+        T_C_O = object_pose
+        T_R_C = np.array(
+            [
+                [0.5, -0.15038373, 0.85286853, 0.1],
+                [-0.8660254, -0.08682409, 0.49240388, -0.39],
+                [0, -0.98480775, -0.17364818, 0.56],
+                [0, 0, 0, 1],
+            ]
+        )
+        T_R_O = T_R_C @ T_C_O
+        object_pos = T_R_O[:3, 3]
+        object_quat_wxyz = R.from_matrix(T_R_O[:3, :3]).as_quat()
+        p.resetBasePositionAndOrientation(self.object_id, object_pos, object_quat_wxyz)
 
     def run(self):
         """Main loop to run the node, update simulation, and publish joint states."""
