@@ -65,9 +65,11 @@ world_dict_table_frame = {
     },
 }
 
-T_R_O = np.eye(4)
-T_R_O[:3, 3] = [0.2, -0.2, 0.14]
-T_R_O[:3, :3] = R.from_euler("z", -36, degrees=True).as_matrix()
+T_O_R = np.eye(4)
+T_O_R[:3, 3] = [-0.2, -0.2, -0.14]
+T_O_R[:3, :3] = R.from_euler("z", 36, degrees=True).as_matrix()
+
+T_R_O = np.linalg.inv(T_O_R)
 
 world_dict_robot_frame = {
     k: {
