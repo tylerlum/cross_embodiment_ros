@@ -18,7 +18,7 @@ def joint_state_callback(msg: JointState) -> None:
 
 
 def get_initial_joint_pos() -> np.ndarray:
-    sub = rospy.Subscriber("/iiwa/joint_states", JointState, joint_state_callback)
+    _sub = rospy.Subscriber("/iiwa/joint_states", JointState, joint_state_callback)
     while INIT_JOINT_POS is None:
         rospy.loginfo("Waiting for INIT_JOINT_POS")
         rospy.sleep(0.1)

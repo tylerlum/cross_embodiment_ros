@@ -6,11 +6,10 @@ from typing import Optional
 import numpy as np
 import pybullet as p
 import rospy
+from geometry_msgs.msg import Pose
 from scipy.spatial.transform import Rotation as R
 from sensor_msgs.msg import JointState
 from std_msgs.msg import Float64MultiArray
-from geometry_msgs.msg import Pose
-
 
 from fabric_world import world_dict_robot_frame
 
@@ -236,7 +235,7 @@ class VisualizationNode:
                 "/juno/u/tylerlum/Downloads/kuka_table/new_origin_7/kuka_table_change_orientation.obj"
             )
         )
-        scene_id = p.loadURDF(str(scene_urdf_path), useFixedBase=True)
+        _scene_id = p.loadURDF(str(scene_urdf_path), useFixedBase=True)
 
         # Load the object mesh
         FAR_AWAY_OBJECT_POSITION = np.zeros(3) + 100  # Far away

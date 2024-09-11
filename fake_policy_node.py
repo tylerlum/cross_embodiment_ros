@@ -1,6 +1,5 @@
 #!/usr/bin/env python
 
-import numpy as np
 import rospy
 import torch
 from std_msgs.msg import Float64MultiArray, MultiArrayDimension, MultiArrayLayout
