@@ -9,7 +9,7 @@ from geometry_msgs.msg import Pose
 from sensor_msgs.msg import JointState
 from std_msgs.msg import Float64MultiArray, MultiArrayDimension, MultiArrayLayout
 
-# from isaacgymenvs.tasks.cross_embodiment.rl_player import RLPlayer
+from rl_player import RlPlayer
 
 
 class RLPolicyNode:
@@ -60,13 +60,13 @@ class RLPolicyNode:
         self.checkpoint_path = "/path/to/checkpoint.pt"  # Update this path
 
         # Create the RL player
-        # self.player = RLPlayer(
-        #     num_observations=self.num_observations,
-        #     num_actions=self.num_actions,
-        #     config_path=self.config_path,
-        #     checkpoint_path=self.checkpoint_path,
-        #     device=self.device,
-        # )
+        self.player = RlPlayer(
+            num_observations=self.num_observations,
+            num_actions=self.num_actions,
+            config_path=self.config_path,
+            checkpoint_path=self.checkpoint_path,
+            device=self.device,
+        )
 
         # Define limits for palm and hand targets
         self.palm_mins = torch.tensor([0, -0.4, 0.3, 0, 0, 0], device=self.device)
