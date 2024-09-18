@@ -1,11 +1,12 @@
-from rl_games.torch_runner import _restore
-from rl_games.torch_runner import players
 from typing import Optional
-from gym import spaces
+
 import numpy as np
-from rl_player_utils import read_cfg
 import torch
 import torch.nn as nn
+from gym import spaces
+from rl_games.torch_runner import _restore, players
+
+from rl_player_utils import read_cfg
 
 
 def assert_equals(a, b):

@@ -1,10 +1,12 @@
-import numpy as np
-from typing import Optional
 import os
-from gym import spaces
-from rl_player_utils import read_cfg
-from rl_games.torch_runner import Runner, players
+from typing import Optional
+
+import numpy as np
 import torch
+from gym import spaces
+from rl_games.torch_runner import Runner, players
+
+from rl_player_utils import read_cfg
 
 
 def assert_equals(a, b):
@@ -36,7 +38,9 @@ class RlPlayer:
         self._run_sanity_checks()
         self.player = self.create_rl_player(checkpoint_path=checkpoint_path)
 
-    def create_rl_player(self, checkpoint_path: Optional[str]) -> players.PpoPlayerContinuous:
+    def create_rl_player(
+        self, checkpoint_path: Optional[str]
+    ) -> players.PpoPlayerContinuous:
         from rl_games.common import env_configurations
 
         env_configurations.register(

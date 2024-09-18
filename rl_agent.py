@@ -1,11 +1,13 @@
-import numpy as np
-from typing import Optional
 import os
-from gym import spaces
-from rl_player_utils import read_cfg
-from rl_games.torch_runner import Runner
-from rl_games.algos_torch import a2c_continuous
+from typing import Optional
+
+import numpy as np
 import torch
+from gym import spaces
+from rl_games.algos_torch import a2c_continuous
+from rl_games.torch_runner import Runner
+
+from rl_player_utils import read_cfg
 
 
 def assert_equals(a, b):
@@ -44,15 +46,17 @@ class RlAgent:
         self._run_sanity_checks()
         self.agent = self.create_rl_agent(checkpoint_path=checkpoint_path)
 
-    def create_rl_agent(self, checkpoint_path: Optional[str]) -> a2c_continuous.A2CAgent:
+    def create_rl_agent(
+        self, checkpoint_path: Optional[str]
+    ) -> a2c_continuous.A2CAgent:
         from rl_games.common import env_configurations
 
         env_configurations.register(
             "rlgpu", {"env_creator": lambda **kwargs: self, "vecenv_type": "RLGPU"}
         )
 
-        from rl_games.common import vecenv
         from isaacgymenvs.utils.rlgames_utils import RLGPUEnv
+        from rl_games.common import vecenv
 
         vecenv.register(
             "RLGPU",
@@ -101,7 +105,11 @@ class RlAgent:
             )
 
     def get_res_dict(
-        self, obs: torch.Tensor, state: torch.Tensor, update_rnn_states: bool = True, no_grad: bool = True,
+        self,
+        obs: torch.Tensor,
+        state: torch.Tensor,
+        update_rnn_states: bool = True,
+        no_grad: bool = True,
     ) -> dict:
         batch_size = obs.shape[0]
         assert_equals(obs.shape, (batch_size, self.num_observations))
@@ -128,32 +136,38 @@ class RlAgent:
 
     def get_action_values_with_grad(self, obs_dict: dict) -> dict:
         # Same as a2c_common.py get_action_values, but with grad
-        processed_obs = self.agent._preproc_obs(obs_dict['obs'])
+        processed_obs = self.agent._preproc_obs(obs_dict["obs"])
         self.agent.model.eval()
         input_dict = {
-            'is_train': False,
-            'prev_actions': None, 
-            'obs' : processed_obs,
-            'rnn_states' : self.agent.rnn_states
+            "is_train": False,
+            "prev_actions": None,
+            "obs": processed_obs,
+            "rnn_states": self.agent.rnn_states,
         }
 
         res_dict = self.agent.model(input_dict)
         if self.agent.has_central_value:
-            states = obs_dict['states']
+            states = obs_dict["states"]
             input_dict = {
-                'is_train': False,
-                'states' : states,
+                "is_train": False,
+                "states": states,
             }
             value = self.agent.get_central_value(input_dict)
-            res_dict['values'] = value
+            res_dict["values"] = value
         return res_dict
 
     def get_normalized_action(
-        self, obs: torch.Tensor, state: torch.Tensor, deterministic_actions: bool = True, no_grad: bool = True
+        self,
+        obs: torch.Tensor,
+        state: torch.Tensor,
+        deterministic_actions: bool = True,
+        no_grad: bool = True,
     ) -> torch.Tensor:
         batch_size = obs.shape[0]
 
-        res_dict = self.get_res_dict(obs=obs, state=state, update_rnn_states=True, no_grad=no_grad)
+        res_dict = self.get_res_dict(
+            obs=obs, state=state, update_rnn_states=True, no_grad=no_grad
+        )
         actions = res_dict["actions"]
         mus = res_dict["mus"]
 
@@ -173,9 +187,13 @@ class RlAgent:
         else:
             return actions_processed
 
-    def get_values(self, obs: torch.Tensor, state: torch.Tensor, no_grad: bool = True) -> torch.Tensor:
+    def get_values(
+        self, obs: torch.Tensor, state: torch.Tensor, no_grad: bool = True
+    ) -> torch.Tensor:
         batch_size = obs.shape[0]
-        res_dict = self.get_res_dict(obs=obs, state=state, update_rnn_states=False, no_grad=no_grad)
+        res_dict = self.get_res_dict(
+            obs=obs, state=state, update_rnn_states=False, no_grad=no_grad
+        )
         values = res_dict["values"]
         assert values.shape in [
             (batch_size, 1),

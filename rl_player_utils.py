@@ -1,6 +1,8 @@
 from typing import Optional
+
 import yaml
-from omegaconf import OmegaConf, DictConfig
+from omegaconf import DictConfig, OmegaConf
+
 from reformat import omegaconf_to_dict, print_dict
 
 
