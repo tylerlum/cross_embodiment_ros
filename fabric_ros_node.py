@@ -37,10 +37,10 @@ class IiwaAllegroFabricPublisher:
             "/iiwa/joint_states", JointState, self.iiwa_joint_state_callback
         )
         self.allegro_cmd_pub = rospy.Publisher(
-            "/allegro/joint_cmd", JointState, queue_size=10
+            "/allegroHand_0/joint_cmd", JointState, queue_size=10
         )
         self.allegro_sub = rospy.Subscriber(
-            "/allegro/joint_states", JointState, self.allegro_joint_state_callback
+            "/allegroHand_0/joint_states", JointState, self.allegro_joint_state_callback
         )
         self.palm_target_sub = rospy.Subscriber(
             "/palm_target", Float64MultiArray, self.palm_target_callback
@@ -282,14 +282,10 @@ class IiwaAllegroFabricPublisher:
                 .numpy()[0, NUM_ARM_JOINTS : NUM_ARM_JOINTS + NUM_HAND_JOINTS]
                 .tolist()
             )  # Use the joint positions from the fabric
-            allegro_msg.velocity = (
-                self.fabric_qd.cpu()
-                .numpy()[0, NUM_ARM_JOINTS : NUM_ARM_JOINTS + NUM_HAND_JOINTS]
-                .tolist()
-            )
-            allegro_msg.effort = [
-                0.0
-            ] * NUM_HAND_JOINTS  # Set efforts to zero for simplicity
+
+            # Leave velocities and efforts as empty lists
+            allegro_msg.velocity = []
+            allegro_msg.effort = []
 
             # Publish the joint states
             self.iiwa_cmd_pub.publish(iiwa_msg)
