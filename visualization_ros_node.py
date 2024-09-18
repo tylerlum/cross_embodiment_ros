@@ -190,13 +190,13 @@ class VisualizationNode:
             "/iiwa/joint_states", JointState, self.iiwa_joint_state_callback
         )
         self.allegro_sub = rospy.Subscriber(
-            "/allegro/joint_states", JointState, self.allegro_joint_state_callback
+            "/allegroHand_0/joint_states", JointState, self.allegro_joint_state_callback
         )
         self.iiwa_cmd_sub = rospy.Subscriber(
             "/iiwa/joint_cmd", JointState, self.iiwa_joint_cmd_callback
         )
         self.allegro_cmd_sub = rospy.Subscriber(
-            "/allegro/joint_cmd", JointState, self.allegro_joint_cmd_callback
+            "/allegroHand_0/joint_cmd", JointState, self.allegro_joint_cmd_callback
         )
         self.palm_target_sub = rospy.Subscriber(
             "/palm_target", Float64MultiArray, self.palm_target_callback
@@ -223,7 +223,8 @@ class VisualizationNode:
 
         # Load robot URDF with a fixed base
         robot_urdf_path = Path(
-            "/juno/u/tylerlum/github_repos/bidexhands_isaacgymenvs/assets/urdf/kuka_allegro_description/kuka_allegro.urdf"
+            # "/juno/u/tylerlum/github_repos/bidexhands_isaacgymenvs/assets/urdf/kuka_allegro_description/kuka_allegro.urdf"
+           "/juno/u/tylerlum/github_repos/fabrics-sim/src/fabrics_sim/models/robots/urdf/kuka_allegro/kuka_allegro.urdf"
         )
         assert robot_urdf_path.exists(), f"robot_urdf_path not found: {robot_urdf_path}"
         robot_id = p.loadURDF(str(robot_urdf_path), useFixedBase=True)
@@ -341,7 +342,6 @@ class VisualizationNode:
         assert q.shape == (23,)
 
         num_total_joints = p.getNumJoints(robot)
-        assert num_total_joints == 27, f"num_total_joints: {num_total_joints}"
         actuatable_joint_idxs = [
             i
             for i in range(num_total_joints)
@@ -357,7 +357,6 @@ class VisualizationNode:
 
     def get_robot_state(self, robot) -> np.ndarray:
         num_total_joints = p.getNumJoints(robot)
-        assert num_total_joints == 27, f"num_total_joints: {num_total_joints}"
         actuatable_joint_idxs = [
             i
             for i in range(num_total_joints)
