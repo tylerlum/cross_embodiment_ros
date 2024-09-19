@@ -26,36 +26,38 @@ def T_to_transform_str(T: np.ndarray) -> str:
 
 THICKNESS = 0.02
 HEIGHT = 1
+TABLE_X_LEN = 0.5
+
 world_dict_table_frame = {
     "right_wall": {
         "env_index": "all",
         "type": "box",
-        "scaling": f"0.9 {THICKNESS} {HEIGHT}",
+        "scaling": f"{2*TABLE_X_LEN} {THICKNESS} {HEIGHT}",
         "transform": f"0 0.37 {0.5 * HEIGHT} 0 0 0 1",  # x y z qx qy qz qw
     },
     "left_wall": {
         "env_index": "all",
         "type": "box",
-        "scaling": f"0.9 {THICKNESS} {HEIGHT}",
+        "scaling": f"{2*TABLE_X_LEN} {THICKNESS} {HEIGHT}",
         "transform": f"0 -0.37 {0.5 * HEIGHT} 0 0 0 1",  # x y z qx qy qz qw
     },
     "back_wall": {
         "env_index": "all",
         "type": "box",
         "scaling": f"{THICKNESS} 0.74 {HEIGHT}",
-        "transform": f"-0.45 0 {0.5 * HEIGHT} 0 0 0 1",  # x y z qx qy qz qw
+        "transform": f"-{TABLE_X_LEN} 0 {0.5 * HEIGHT} 0 0 0 1",  # x y z qx qy qz qw
     },
     "front_wall": {
         "env_index": "all",
         "type": "box",
         "scaling": f"{THICKNESS} 0.74 {HEIGHT}",
-        "transform": f"0.45 0 {0.5 * HEIGHT} 0 0 0 1",  # x y z qx qy qz qw
+        "transform": f"{TABLE_X_LEN} 0 {0.5 * HEIGHT} 0 0 0 1",  # x y z qx qy qz qw
     },
     "table": {
         "env_index": "all",
         "type": "box",
-        "scaling": f"0.45 0.74 {THICKNESS}",
-        "transform": "0.225 0 0 0 0 0 1",  # x y z qx qy qz qw
+        "scaling": f"{TABLE_X_LEN} 0.74 {THICKNESS}",
+        "transform": f"{TABLE_X_LEN/2} 0 0 0 0 0 1",  # x y z qx qy qz qw
     },
     "ceiling": {
         "env_index": "all",
@@ -66,7 +68,7 @@ world_dict_table_frame = {
 }
 
 T_O_R = np.eye(4)
-T_O_R[:3, 3] = [-0.2, -0.2, -0.14]
+T_O_R[:3, 3] = [-0.15, -0.2, -0.14]
 T_O_R[:3, :3] = R.from_euler("z", 36, degrees=True).as_matrix()
 
 T_R_O = np.linalg.inv(T_O_R)

@@ -9,7 +9,7 @@ from sensor_msgs.msg import JointState
 class RecordJointData:
     def __init__(self):
         # Initialize ROS node
-        rospy.init_node("record_joint_data", anonymous=True)
+        rospy.init_node("record_joint_data")
 
         # Initialize storage for latest joint state and command
         self.latest_joint_state = None

@@ -21,7 +21,7 @@ NUM_HAND_JOINTS = 16
 class IiwaAllegroFabricPublisher:
     def __init__(self):
         # Initialize ROS node
-        rospy.init_node("iiwa_allegro_fabric_publisher", anonymous=True)
+        rospy.init_node("iiwa_allegro_fabric_publisher")
 
         # ROS msgs
         self.iiwa_joint_state = None

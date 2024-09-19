@@ -101,7 +101,7 @@ def publish_joint_cmd(init_joint_pos: np.ndarray) -> None:
 
 if __name__ == "__main__":
     try:
-        rospy.init_node("iiwa_joint_publisher", anonymous=True)
+        rospy.init_node("iiwa_joint_publisher")
         init_joint_pos = get_initial_joint_pos()
         publish_joint_cmd(init_joint_pos=init_joint_pos)
     except rospy.ROSInterruptException:

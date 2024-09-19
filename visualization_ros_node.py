@@ -233,20 +233,29 @@ class VisualizationNode:
         # Load the scene mesh
         scene_urdf_path = create_urdf(
             Path(
-                "/juno/u/tylerlum/Downloads/kuka_table/new_origin_7/kuka_table_change_orientation.obj"
+                "/juno/u/tylerlum/Downloads/kuka_table/new_origin_9/kuka_table.obj"
             )
         )
         _scene_id = p.loadURDF(str(scene_urdf_path), useFixedBase=True)
 
         # Load the object mesh
         FAR_AWAY_OBJECT_POSITION = np.zeros(3) + 100  # Far away
-        object_urdf_path = create_urdf(
-            Path(
+        object_mesh_path = rospy.get_param("/mesh_file", None)
+        if object_mesh_path is None:
+            DEFAULT_MESH_PATH = (
                 # "/juno/u/oliviayl/repos/cross_embodiment/FoundationPose/kiri_meshes/blueblock/3DModel.obj"
                 # "/juno/u/oliviayl/repos/cross_embodiment/FoundationPose/kiri_meshes/snackbox/3DModel.obj"
                 # "/juno/u/oliviayl/repos/cross_embodiment/FoundationPose/kiri_meshes/woodblock/3DModel.obj"
                 # "/juno/u/oliviayl/repos/cross_embodiment/FoundationPose/kiri_meshes/cup_ycbv/textured.obj"
                 "/juno/u/tylerlum/github_repos/cross_embodiment_ros/kiri_meshes/cup_ycbv/textured.obj"
+            )
+            object_mesh_path = DEFAULT_MESH_PATH
+            rospy.logwarn(f"Using default object mesh: {object_mesh_path}")
+        assert isinstance(object_mesh_path, str), f"object_mesh_path: {object_mesh_path}"
+
+        object_urdf_path = create_urdf(
+            Path(
+                object_mesh_path
             )
         )
         self.object_id = p.loadURDF(str(object_urdf_path), useFixedBase=True)

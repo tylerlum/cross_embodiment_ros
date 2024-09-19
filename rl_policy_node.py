@@ -15,7 +15,7 @@ from rl_player import RlPlayer
 class RLPolicyNode:
     def __init__(self):
         # Initialize the ROS node
-        rospy.init_node("rl_policy_node", anonymous=True)
+        rospy.init_node("rl_policy_node")
 
         # Publisher for palm and hand targets
         self.palm_target_pub = rospy.Publisher(

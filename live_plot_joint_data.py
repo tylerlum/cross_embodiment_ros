@@ -9,7 +9,7 @@ from sensor_msgs.msg import JointState
 class LiveJointPlotterWithLimits:
     def __init__(self):
         # Initialize ROS node
-        rospy.init_node("live_joint_plotter_with_limits", anonymous=True)
+        rospy.init_node("live_joint_plotter_with_limits")
 
         # Initialize storage for latest joint state and command
         self.latest_joint_state = None

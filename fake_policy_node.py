@@ -8,7 +8,7 @@ from std_msgs.msg import Float64MultiArray, MultiArrayDimension, MultiArrayLayou
 class FakePolicyNode:
     def __init__(self):
         # Initialize the ROS node
-        rospy.init_node("fake_policy_node", anonymous=True)
+        rospy.init_node("fake_policy_node")
 
         # Publisher for palm and hand targets
         self.palm_target_pub = rospy.Publisher(
