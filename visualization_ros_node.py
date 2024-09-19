@@ -2,7 +2,7 @@
 
 import struct
 from pathlib import Path
-from typing import Optional, Tuple
+from typing import Literal, Optional, Tuple
 
 import numpy as np
 import pybullet as p
@@ -291,7 +291,6 @@ class VisualizationNode:
         )
 
         # Initialize PyBullet
-        # Create a real robot (simulating real robot) and a command robot (visualizing commands)
         rospy.loginfo("~" * 80)
         rospy.loginfo("Initializing PyBullet")
         self.initialize_pybullet()
@@ -306,6 +305,7 @@ class VisualizationNode:
         """Initialize PyBullet, set up camera, and load the robot URDF."""
         p.connect(p.GUI)
 
+        # Create a real robot (simulating real robot) and a command robot (visualizing commands)
         # Load robot URDF with a fixed base
         robot_urdf_path = Path(
             # "/juno/u/tylerlum/github_repos/bidexhands_isaacgymenvs/assets/urdf/kuka_allegro_description/kuka_allegro.urdf"
@@ -387,10 +387,21 @@ class VisualizationNode:
             xyz=FAR_AWAY_PALM_TARGET[:3],
             rotation_matrix=R.from_euler("zyx", FAR_AWAY_PALM_TARGET[3:]).as_matrix(),
         )
-        self.camera_lines = visualize_transform(
-            xyz=T_R_C2[:3, 3],
-            rotation_matrix=T_R_C2[:3, :3],
-        )
+
+        # Create the camera lines
+        CAMERA_LINES_TO_DRAW: Literal["C", "C2"] = "C"
+        if CAMERA_LINES_TO_DRAW == "C":
+            self.camera_lines = visualize_transform(
+                xyz=T_R_C[:3, 3],
+                rotation_matrix=T_R_C[:3, :3],
+            )
+        elif CAMERA_LINES_TO_DRAW == "C2":
+            self.camera_lines = visualize_transform(
+                xyz=T_R_C2[:3, 3],
+                rotation_matrix=T_R_C2[:3, :3],
+            )
+        else:
+            raise ValueError(f"Invalid CAMERA_LINES_TO_DRAW: {CAMERA_LINES_TO_DRAW}")
 
         # Set the camera parameters
         self.set_pybullet_camera()
@@ -508,6 +519,7 @@ class VisualizationNode:
                 pc2.read_points(msg, field_names=("x", "y", "z", "rgb"), skip_nans=True)
             )
         )
+
         n_pts = self.point_cloud_and_colors.shape[0]
         assert self.point_cloud_and_colors.shape == (
             n_pts,
@@ -597,18 +609,9 @@ class VisualizationNode:
         rospy.loginfo(f"robot_palm_euler_zyx = {robot_palm_euler_zyx}")
 
         # Update the object pose
-        # Object pose is in camera frame
-        # We want it in world frame = robot frame
-        # T_R_C just guessed for now
+        # Object pose is in camera frame = C frame
+        # We want it in world frame = robot frame = R frame
         T_C_O = object_pose
-        T_R_C = np.array(
-            [
-                [0.5, -0.15038373, 0.85286853, 0.1],
-                [-0.8660254, -0.08682409, 0.49240388, -0.39],
-                [0, -0.98480775, -0.17364818, 0.56],
-                [0, 0, 0, 1],
-            ]
-        )
         T_R_O = T_R_C @ T_C_O
         object_pos = T_R_O[:3, 3]
         object_quat_wxyz = R.from_matrix(T_R_O[:3, :3]).as_quat()
