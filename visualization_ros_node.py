@@ -1,14 +1,16 @@
 #!/usr/bin/env python
 
+import struct
 from pathlib import Path
 from typing import Optional
 
 import numpy as np
 import pybullet as p
 import rospy
+import sensor_msgs.point_cloud2 as pc2
 from geometry_msgs.msg import Pose
 from scipy.spatial.transform import Rotation as R
-from sensor_msgs.msg import JointState
+from sensor_msgs.msg import JointState, PointCloud2
 from std_msgs.msg import Float64MultiArray
 
 from fabric_world import world_dict_robot_frame
@@ -35,6 +37,29 @@ CYAN_RGBA = [*CYAN_RGB, 1]
 MAGENTA_RGBA = [*MAGENTA_RGB, 1]
 WHITE_RGBA = [*WHITE_RGB, 1]
 BLACK_RGBA = [*BLACK_RGB, 1]
+
+
+# C is camera frame with Z forward and Y down
+T_R_C = np.eye(4)
+T_R_C[:3, :3] = np.array(
+    [
+        [0.9993793163153581, -0.032378481601275176, 0.013878618455879281],
+        [-0.026045538333648588, -0.41386448768757556, 0.9099658321959191],
+        [-0.0237194446384908, -0.9097625073393034, -0.4144509237361466],
+    ]
+)
+T_R_C[:3, 3] = np.array([0.3462484470027277, -0.8607951520007057, 0.7653137967937953])
+
+# C2 is camera frame with X forward and Y left
+T_C_C2 = np.eye(4)
+T_C_C2[:3, :3] = np.array(
+    [
+        [0, -1, 0],
+        [0, 0, -1],
+        [1, 0, 0],
+    ]
+)
+T_R_C2 = T_R_C @ T_C_C2
 
 
 def add_cuboid(halfExtents, position, orientation, rgbaColor=RED_TRANSLUCENT_RGBA):
@@ -133,6 +158,84 @@ def visualize_transform(
         return lines
 
 
+def rgb_to_float_vectorized(colors):
+    """
+    Vectorized version to convert packed RGB floats to separate R, G, B components.
+
+    :param colors: numpy array of uint32 representing packed RGB colors
+    :return: numpy array of shape (N, 3) with float values for R, G, B each in range [0, 1]
+    """
+    s = colors.astype(">f").view(np.uint32)
+    r = (s >> 16) & 0x0000FF
+    g = (s >> 8) & 0x0000FF
+    b = s & 0x0000FF
+    return np.column_stack((r, g, b)).astype(float) / 255.0
+
+
+def rgb_to_float_vectorized_v2(colors):
+    """
+    Vectorized version to convert packed RGB ints to separate R, G, B components.
+
+    :param colors: numpy array of uint32 representing packed RGB colors
+    :return: numpy array of shape (N, 3) with float values for R, G, B each in range [0, 1]
+    """
+    r = (colors >> 16) & 0xFF
+    g = (colors >> 8) & 0xFF
+    b = colors & 0xFF
+    return np.column_stack((r, g, b)).astype(float) / 255.0
+
+
+def rgb_to_float(color):
+    """Convert packed RGB float to separate R, G, B components."""
+    s = struct.pack(">f", color)
+    i = struct.unpack(">I", s)[0]
+    r = (i >> 16) & 0x0000FF
+    g = (i >> 8) & 0x0000FF
+    b = (i) & 0x0000FF
+    return r / 255.0, g / 255.0, b / 255.0
+
+
+def transform_points(T: np.ndarray, points: np.ndarray) -> np.ndarray:
+    assert T.shape == (4, 4), T.shape
+    n_pts = points.shape[0]
+    assert points.shape == (n_pts, 3), points.shape
+
+    return (T[:3, :3] @ points.T + T[:3, 3][:, None]).T
+
+
+def draw_colored_point_cloud(
+    point_cloud_and_colors: np.ndarray,
+    point_size: int = 5,
+):
+    n_pts = point_cloud_and_colors.shape[0]
+    assert point_cloud_and_colors.shape == (
+        n_pts,
+        4,
+    ), f"point_cloud_and_colors.shape: {point_cloud_and_colors.shape}"
+    point_cloud = point_cloud_and_colors[:, :3]
+
+    point_cloud = transform_points(T=T_R_C2, points=point_cloud)
+
+    point_cloud_raw_colors = point_cloud_and_colors[:, 3]
+    # point_cloud_colors = rgb_to_float_vectorized(point_cloud_raw_colors)
+    point_cloud_colors = [rgb_to_float(color) for color in point_cloud_raw_colors]
+
+    # Use debug points instead of spheres for faster rendering
+    if not hasattr(draw_colored_point_cloud, "points"):
+        draw_colored_point_cloud.points = p.addUserDebugPoints(
+            point_cloud,
+            point_cloud_colors,
+            point_size,
+        )
+    else:
+        p.addUserDebugPoints(
+            point_cloud,
+            point_cloud_colors,
+            point_size,
+            replaceItemUniqueId=draw_colored_point_cloud.points,
+        )
+
+
 def create_urdf(obj_path: Path) -> Path:
     assert obj_path.suffix == ".obj"
     filename = obj_path.name
@@ -184,6 +287,7 @@ class VisualizationNode:
         self.allegro_joint_state = None
         self.palm_target = None
         self.object_pose = None
+        self.point_cloud_and_colors = None
 
         # Subscribers
         self.iiwa_sub = rospy.Subscriber(
@@ -203,6 +307,11 @@ class VisualizationNode:
         )
         self.object_pose_sub = rospy.Subscriber(
             "/object_pose", Pose, self.object_pose_callback
+        )
+        self.point_cloud_sub = rospy.Subscriber(
+            "/zed/zed_node/point_cloud/cloud_registered",
+            PointCloud2,
+            self.point_cloud_callback,
         )
 
         # Initialize PyBullet
@@ -224,7 +333,7 @@ class VisualizationNode:
         # Load robot URDF with a fixed base
         robot_urdf_path = Path(
             # "/juno/u/tylerlum/github_repos/bidexhands_isaacgymenvs/assets/urdf/kuka_allegro_description/kuka_allegro.urdf"
-           "/juno/u/tylerlum/github_repos/fabrics-sim/src/fabrics_sim/models/robots/urdf/kuka_allegro/kuka_allegro.urdf"
+            "/juno/u/tylerlum/github_repos/fabrics-sim/src/fabrics_sim/models/robots/urdf/kuka_allegro/kuka_allegro.urdf"
         )
         assert robot_urdf_path.exists(), f"robot_urdf_path not found: {robot_urdf_path}"
         robot_id = p.loadURDF(str(robot_urdf_path), useFixedBase=True)
@@ -232,11 +341,9 @@ class VisualizationNode:
 
         # Load the scene mesh
         scene_urdf_path = create_urdf(
-            Path(
-                "/juno/u/tylerlum/Downloads/kuka_table/new_origin_9/kuka_table.obj"
-            )
+            Path("/juno/u/tylerlum/Downloads/kuka_table/new_origin_9/kuka_table.obj")
         )
-        _scene_id = p.loadURDF(str(scene_urdf_path), useFixedBase=True)
+        # _scene_id = p.loadURDF(str(scene_urdf_path), useFixedBase=True)
 
         # Load the object mesh
         FAR_AWAY_OBJECT_POSITION = np.zeros(3) + 100  # Far away
@@ -251,13 +358,11 @@ class VisualizationNode:
             )
             object_mesh_path = DEFAULT_MESH_PATH
             rospy.logwarn(f"Using default object mesh: {object_mesh_path}")
-        assert isinstance(object_mesh_path, str), f"object_mesh_path: {object_mesh_path}"
+        assert isinstance(
+            object_mesh_path, str
+        ), f"object_mesh_path: {object_mesh_path}"
 
-        object_urdf_path = create_urdf(
-            Path(
-                object_mesh_path
-            )
-        )
+        object_urdf_path = create_urdf(Path(object_mesh_path))
         self.object_id = p.loadURDF(str(object_urdf_path), useFixedBase=True)
         p.resetBasePositionAndOrientation(
             self.object_id, FAR_AWAY_OBJECT_POSITION, [0, 0, 0, 1]
@@ -305,6 +410,10 @@ class VisualizationNode:
         self.hand_cmd_lines = visualize_transform(
             xyz=FAR_AWAY_PALM_TARGET[:3],
             rotation_matrix=R.from_euler("zyx", FAR_AWAY_PALM_TARGET[3:]).as_matrix(),
+        )
+        self.camera_lines = visualize_transform(
+            xyz=T_R_C2[:3, 3],
+            rotation_matrix=T_R_C2[:3, :3],
         )
 
         # Set the camera parameters
@@ -417,6 +526,18 @@ class VisualizationNode:
         latest_pose[:3, :3] = R.from_quat(quat_xyzw).as_matrix()
         self.object_pose = latest_pose
 
+    def point_cloud_callback(self, msg: PointCloud2):
+        self.point_cloud_and_colors = np.array(
+            list(
+                pc2.read_points(msg, field_names=("x", "y", "z", "rgb"), skip_nans=True)
+            )
+        )
+        n_pts = self.point_cloud_and_colors.shape[0]
+        assert self.point_cloud_and_colors.shape == (
+            n_pts,
+            4,
+        ), f"self.point_cloud_and_colors.shape: {self.point_cloud_and_colors.shape}"
+
     def update_pybullet(self):
         """Update the PyBullet simulation with the commanded joint positions."""
         if self.iiwa_joint_cmd is None:
@@ -516,6 +637,14 @@ class VisualizationNode:
         object_pos = T_R_O[:3, 3]
         object_quat_wxyz = R.from_matrix(T_R_O[:3, :3]).as_quat()
         p.resetBasePositionAndOrientation(self.object_id, object_pos, object_quat_wxyz)
+
+        # Update the point cloud
+        if self.point_cloud_and_colors is not None:
+            draw_colored_point_cloud(
+                point_cloud_and_colors=self.point_cloud_and_colors,
+            )
+        else:
+            rospy.logwarn("point_cloud_and_colors is None")
 
     def run(self):
         """Main loop to run the node, update simulation, and publish joint states."""
