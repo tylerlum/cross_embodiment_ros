@@ -2,7 +2,7 @@
 
 import struct
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Tuple
 
 import numpy as np
 import pybullet as p
@@ -40,6 +40,7 @@ BLACK_RGBA = [*BLACK_RGB, 1]
 
 
 # C is camera frame with Z forward and Y down
+# From Claire's extrinsics
 T_R_C = np.eye(4)
 T_R_C[:3, :3] = np.array(
     [
@@ -51,6 +52,7 @@ T_R_C[:3, :3] = np.array(
 T_R_C[:3, 3] = np.array([0.3462484470027277, -0.8607951520007057, 0.7653137967937953])
 
 # C2 is camera frame with X forward and Y left
+# https://community.stereolabs.com/t/coordinate-system-of-pointcloud/908/2
 T_C_C2 = np.eye(4)
 T_C_C2[:3, :3] = np.array(
     [
@@ -158,35 +160,8 @@ def visualize_transform(
         return lines
 
 
-def rgb_to_float_vectorized(colors):
-    """
-    Vectorized version to convert packed RGB floats to separate R, G, B components.
-
-    :param colors: numpy array of uint32 representing packed RGB colors
-    :return: numpy array of shape (N, 3) with float values for R, G, B each in range [0, 1]
-    """
-    s = colors.astype(">f").view(np.uint32)
-    r = (s >> 16) & 0x0000FF
-    g = (s >> 8) & 0x0000FF
-    b = s & 0x0000FF
-    return np.column_stack((r, g, b)).astype(float) / 255.0
-
-
-def rgb_to_float_vectorized_v2(colors):
-    """
-    Vectorized version to convert packed RGB ints to separate R, G, B components.
-
-    :param colors: numpy array of uint32 representing packed RGB colors
-    :return: numpy array of shape (N, 3) with float values for R, G, B each in range [0, 1]
-    """
-    r = (colors >> 16) & 0xFF
-    g = (colors >> 8) & 0xFF
-    b = colors & 0xFF
-    return np.column_stack((r, g, b)).astype(float) / 255.0
-
-
-def rgb_to_float(color):
-    """Convert packed RGB float to separate R, G, B components."""
+def rgb_to_float(color: float) -> Tuple[float, float, float]:
+    """Convert packed RGB float to separate R, G, B components (https://wiki.ros.org/pcl/Overview)."""
     s = struct.pack(">f", color)
     i = struct.unpack(">I", s)[0]
     r = (i >> 16) & 0x0000FF
@@ -214,22 +189,23 @@ def draw_colored_point_cloud(
     ), f"point_cloud_and_colors.shape: {point_cloud_and_colors.shape}"
     point_cloud = point_cloud_and_colors[:, :3]
 
-    point_cloud = transform_points(T=T_R_C2, points=point_cloud)
+    # point_cloud is in C2 frame
+    point_cloud_R = transform_points(T=T_R_C2, points=point_cloud)
 
+    # Extract colors from the point cloud
     point_cloud_raw_colors = point_cloud_and_colors[:, 3]
-    # point_cloud_colors = rgb_to_float_vectorized(point_cloud_raw_colors)
     point_cloud_colors = [rgb_to_float(color) for color in point_cloud_raw_colors]
 
     # Use debug points instead of spheres for faster rendering
     if not hasattr(draw_colored_point_cloud, "points"):
         draw_colored_point_cloud.points = p.addUserDebugPoints(
-            point_cloud,
+            point_cloud_R,
             point_cloud_colors,
             point_size,
         )
     else:
         p.addUserDebugPoints(
-            point_cloud,
+            point_cloud_R,
             point_cloud_colors,
             point_size,
             replaceItemUniqueId=draw_colored_point_cloud.points,
@@ -343,7 +319,7 @@ class VisualizationNode:
         scene_urdf_path = create_urdf(
             Path("/juno/u/tylerlum/Downloads/kuka_table/new_origin_9/kuka_table.obj")
         )
-        # _scene_id = p.loadURDF(str(scene_urdf_path), useFixedBase=True)
+        _scene_id = p.loadURDF(str(scene_urdf_path), useFixedBase=True)
 
         # Load the object mesh
         FAR_AWAY_OBJECT_POSITION = np.zeros(3) + 100  # Far away
