@@ -377,15 +377,15 @@ class VisualizationNode:
         FAR_AWAY_PALM_TARGET = np.zeros(6) + 100  # Far away
         self.hand_target_lines = visualize_transform(
             xyz=FAR_AWAY_PALM_TARGET[:3],
-            rotation_matrix=R.from_euler("zyx", FAR_AWAY_PALM_TARGET[3:]).as_matrix(),
+            rotation_matrix=R.from_euler("ZYX", FAR_AWAY_PALM_TARGET[3:]).as_matrix(),
         )
         self.hand_lines = visualize_transform(
             xyz=FAR_AWAY_PALM_TARGET[:3],
-            rotation_matrix=R.from_euler("zyx", FAR_AWAY_PALM_TARGET[3:]).as_matrix(),
+            rotation_matrix=R.from_euler("ZYX", FAR_AWAY_PALM_TARGET[3:]).as_matrix(),
         )
         self.hand_cmd_lines = visualize_transform(
             xyz=FAR_AWAY_PALM_TARGET[:3],
-            rotation_matrix=R.from_euler("zyx", FAR_AWAY_PALM_TARGET[3:]).as_matrix(),
+            rotation_matrix=R.from_euler("ZYX", FAR_AWAY_PALM_TARGET[3:]).as_matrix(),
         )
 
         # Create the camera lines
@@ -574,7 +574,7 @@ class VisualizationNode:
         # Update the hand target
         visualize_transform(
             xyz=palm_target[:3],
-            rotation_matrix=R.from_euler("zyx", palm_target[3:]).as_matrix(),
+            rotation_matrix=R.from_euler("ZYX", palm_target[3:]).as_matrix(),
             lines=self.hand_target_lines,
         )
 
@@ -603,10 +603,10 @@ class VisualizationNode:
         # Log to debug palm position and orientation in robot frame
         rospy.loginfo(f"robot_palm_com = {robot_palm_com}")
         rospy.loginfo(f"robot_palm_quat = {robot_palm_quat}")
-        robot_palm_euler_zyx = R.from_quat(robot_palm_quat).as_euler(
-            "zyx", degrees=False
+        robot_palm_euler_ZYX = R.from_quat(robot_palm_quat).as_euler(
+            "ZYX", degrees=False
         )
-        rospy.loginfo(f"robot_palm_euler_zyx = {robot_palm_euler_zyx}")
+        rospy.loginfo(f"robot_palm_euler_ZYX = {robot_palm_euler_ZYX}")
 
         # Update the object pose
         # Object pose is in camera frame = C frame
