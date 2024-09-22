@@ -35,13 +35,13 @@ class FakeRobotNode:
         # Publisher and subscriber
         self.iiwa_pub = rospy.Publisher("/iiwa/joint_states", JointState, queue_size=10)
         self.allegro_pub = rospy.Publisher(
-            "/allegro/joint_states", JointState, queue_size=10
+            "/allegroHand_0/joint_states", JointState, queue_size=10
         )
         self.iiwa_cmd_sub = rospy.Subscriber(
             "/iiwa/joint_cmd", JointState, self.iiwa_joint_cmd_callback
         )
         self.allegro_cmd_sub = rospy.Subscriber(
-            "/allegro/joint_cmd", JointState, self.allegro_joint_cmd_callback
+            "/allegroHand_0/joint_cmd", JointState, self.allegro_joint_cmd_callback
         )
 
         # State
