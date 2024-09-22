@@ -73,7 +73,6 @@ def main():
         plotter.plot(
             y_data_list=y_data_list,
         )
-        rospy.loginfo(joint_angles_now.shape)
 
 
 if __name__ == "__main__":
