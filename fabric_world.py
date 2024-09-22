@@ -27,42 +27,43 @@ def T_to_transform_str(T: np.ndarray) -> str:
 THICKNESS = 0.02
 HEIGHT = 1
 TABLE_X_LEN = 0.5
+TABLE_Y_LEN = 0.74
 
 world_dict_table_frame = {
     "right_wall": {
         "env_index": "all",
         "type": "box",
         "scaling": f"{2*TABLE_X_LEN} {THICKNESS} {HEIGHT}",
-        "transform": f"0 0.37 {0.5 * HEIGHT} 0 0 0 1",  # x y z qx qy qz qw
+        "transform": f"0 {0.5*TABLE_Y_LEN} {0.5 * HEIGHT} 0 0 0 1",  # x y z qx qy qz qw
     },
     "left_wall": {
         "env_index": "all",
         "type": "box",
         "scaling": f"{2*TABLE_X_LEN} {THICKNESS} {HEIGHT}",
-        "transform": f"0 -0.37 {0.5 * HEIGHT} 0 0 0 1",  # x y z qx qy qz qw
+        "transform": f"0 {-0.5*TABLE_Y_LEN} {0.5 * HEIGHT} 0 0 0 1",  # x y z qx qy qz qw
     },
     "back_wall": {
         "env_index": "all",
         "type": "box",
-        "scaling": f"{THICKNESS} 0.74 {HEIGHT}",
+        "scaling": f"{THICKNESS} {TABLE_Y_LEN} {HEIGHT}",
         "transform": f"-{TABLE_X_LEN} 0 {0.5 * HEIGHT} 0 0 0 1",  # x y z qx qy qz qw
     },
     "front_wall": {
         "env_index": "all",
         "type": "box",
-        "scaling": f"{THICKNESS} 0.74 {HEIGHT}",
+        "scaling": f"{THICKNESS} {TABLE_Y_LEN} {HEIGHT}",
         "transform": f"{TABLE_X_LEN} 0 {0.5 * HEIGHT} 0 0 0 1",  # x y z qx qy qz qw
     },
     "table": {
         "env_index": "all",
         "type": "box",
-        "scaling": f"{TABLE_X_LEN} 0.74 {THICKNESS}",
-        "transform": f"{TABLE_X_LEN/2} 0 0 0 0 0 1",  # x y z qx qy qz qw
+        "scaling": f"{TABLE_X_LEN} {TABLE_Y_LEN} {THICKNESS}",
+        "transform": f"{0.5*TABLE_X_LEN} 0 0 0 0 0 1",  # x y z qx qy qz qw
     },
     "ceiling": {
         "env_index": "all",
         "type": "box",
-        "scaling": f"0.9 0.74 {THICKNESS}",
+        "scaling": f"0.9 {TABLE_Y_LEN} {THICKNESS}",
         "transform": f"0 0 {HEIGHT} 0 0 0 1",  # x y z qx qy qz qw
     },
 }
