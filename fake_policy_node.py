@@ -3,6 +3,7 @@
 import rospy
 import torch
 from std_msgs.msg import Float64MultiArray, MultiArrayDimension, MultiArrayLayout
+import numpy as np
 
 
 class FakePolicyNode:
@@ -54,10 +55,11 @@ class FakePolicyNode:
             .uniform_(0.3, 0.6)
             .to(device=palm_target.device)
         )
-        DEFAULT_EULER_Z = -1.56854046
-        DEFAULT_EULER_Y = 0.78539692
-        DEFAULT_EULER_X = 1.56854046
-        DELTA = 0.1
+        DEFAULT_EULER_Z = np.deg2rad(0)
+        DEFAULT_EULER_Y = np.deg2rad(0)
+        DEFAULT_EULER_X = np.deg2rad(180)
+
+        DELTA = np.deg2rad(10)
         palm_target[:, 3] = (
             torch.FloatTensor(self.num_envs)
             .uniform_(DEFAULT_EULER_Z - DELTA, DEFAULT_EULER_Z + DELTA)
