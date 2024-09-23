@@ -18,6 +18,8 @@ Debugging Nodes:
 * `record_joint_data_ros_node.py`: Subscribes to `/iiwa/joint_states` and `/iiwa/joint_cmd`. Records joint positions and commands to a file.
 * `sine_wave_publisher_ros_node.py` and `sine_wave_publisher_wider_ros_node.py`: Publishes sine waves to `/iiwa/joint_cmd` for testing.
 
+NOTE: We use a kuka allegro robot, so we also have `/allegroHand_0/joint_states` and `/allegroHand_0/joint_cmd` topics for the hand state and commands, respectively. We keep these out of the descriptions and diagrams for simplicity.
+
 ```mermaid
 graph LR
     D[Perception] -->|/object_pose| A
