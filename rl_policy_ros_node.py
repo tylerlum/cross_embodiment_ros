@@ -18,6 +18,10 @@ def var_to_is_none_str(var) -> str:
     return "Not None"
 
 
+def assert_equals(a, b) -> None:
+    assert a == b, f"{a} != {b}"
+
+
 class RLPolicyNode:
     def __init__(self):
         # Initialize the ROS node
@@ -150,7 +154,7 @@ class RLPolicyNode:
                 fabric_qdd,
             ]
         )
-        assert observation.shape == (self.num_observations,), f"{observation.shape}"
+        assert_equals(observation.shape, (self.num_observations,))
 
         return torch.from_numpy(observation).float().unsqueeze(0).to(self.device)
 
@@ -186,12 +190,9 @@ class RLPolicyNode:
 
             if obs is not None:
                 # Get the normalized action from the RL player
-                # normalized_action = self.player.get_normalized_action(obs=obs)
-                normalized_action = torch.zeros(1, self.num_actions, device=self.device)
-                assert normalized_action.shape == (
-                    1,
-                    self.num_actions,
-                ), f"{normalized_action.shape}"
+                normalized_action = self.player.get_normalized_action(obs=obs)
+                # normalized_action = torch.zeros(1, self.num_actions, device=self.device)
+                assert_equals(normalized_action.shape, (1, self.num_actions))
 
                 # Rescale the action to get palm and hand targets
                 palm_target, hand_target = self.rescale_action(normalized_action)
