@@ -4,12 +4,19 @@ ROS Noetic code for cross embodiment gap project
 
 Real Nodes:
 * `fabric_ros_node.py`: Subscribes to `/iiwa/joint_states` to initialize fabric, subscribes to `/palm_target` and `/hand_target`, publishes to `/iiwa/joint_cmd`
-* `rl_policy_node.py`: Subscribes to `/iiwa/joint_states`, `/iiwa/joint_cmd`, and `/object_pose`. Publishes to `/palm_target` and `/hand_target`
+* `rl_policy_ros_node.py`: Subscribes to `/iiwa/joint_states`, `/iiwa/joint_cmd`, and `/object_pose`. Publishes to `/palm_target` and `/hand_target`
 * `visualization_ros_node.py`: Subscribes to `/iiwa/joint_states`, `/iiwa/joint_cmd`, `/palm_target`, and `/object_pose`. Visualizes all these things for debugging
 
 Dummy Nodes for testing:
 * `fake_robot_ros_node.py`: Pretends to be real robot. Publishes `/iiwa/joint_states` and subscribes to `/iiwa/joint_cmd`
 * `fake_policy_ros_node.py`: Pretends to be RL policy. Publishes `/palm_target` and `/hand_target`
+
+Debugging Nodes:
+* `joint_pos_visualizer_ros_node.py`: Subscribes to `/iiwa/joint_states`. Visualizes joint positions and joint limits.
+* `joint_vel_visualizer_ros_node.py`: Subscribes to `/iiwa/joint_states`. Visualizes joint velocities.
+* `live_plot_joint_data_ros_node.py`: Subscribes to `/iiwa/joint_states` and `/iiwa/joint_cmd`. Plots joint positions and commands in real time.
+* `record_joint_data_ros_node.py`: Subscribes to `/iiwa/joint_states` and `/iiwa/joint_cmd`. Records joint positions and commands to a file.
+* `sine_wave_publisher_ros_node.py` and `sine_wave_publisher_wider_ros_node.py`: Publishes sine waves to `/iiwa/joint_cmd` for testing.
 
 ```mermaid
 graph LR
