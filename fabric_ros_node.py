@@ -52,9 +52,6 @@ class IiwaAllegroFabricPublisher:
 
         # ROS rate
         self.rate = rospy.Rate(60)  # 60 Hz
-
-        # Number of environments (batch size) and device setup
-        self.num_envs = 1  # Single environment for this example
         self.device = "cuda:0"
 
         # Time step
@@ -64,19 +61,18 @@ class IiwaAllegroFabricPublisher:
         self._setup_fabric_action_space()
 
         # When only testing the arm, set this to False to ignore the Allegro hand
-        self.WAIT_FOR_ALLEGRO_STATE = False
+        self.WAIT_FOR_ALLEGRO_STATE = True
         if not self.WAIT_FOR_ALLEGRO_STATE:
             rospy.logwarn("NOT WAITING FOR ALLEGRO STATE")
             self.allegro_joint_state = np.zeros(NUM_HAND_JOINTS)
 
+        # Wait for the initial joint states
         while not rospy.is_shutdown():
             if (
                 self.iiwa_joint_state is not None
                 and self.allegro_joint_state is not None
-                and self.palm_target is not None
-                and self.hand_target is not None
             ):
-                rospy.loginfo("Got iiwa and allegro joint states and targets")
+                rospy.loginfo("Got iiwa and allegro joint states")
                 break
 
             rospy.loginfo(
@@ -88,12 +84,14 @@ class IiwaAllegroFabricPublisher:
         assert self.iiwa_joint_state is not None
         assert self.allegro_joint_state is not None
         self.fabric_q.copy_(
-            torch.tensor(
+            torch.from_numpy(
                 np.concatenate(
                     [self.iiwa_joint_state, self.allegro_joint_state], axis=0
                 ),
-                device=self.device,
-            ).unsqueeze(0)
+            )
+            .unsqueeze(0)
+            .float()
+            .to(self.device)
         )
 
     def iiwa_joint_state_callback(self, msg: JointState) -> None:
@@ -103,12 +101,14 @@ class IiwaAllegroFabricPublisher:
         self.allegro_joint_state = np.array(msg.position)
 
     def palm_target_callback(self, msg: Float64MultiArray) -> None:
-        self.palm_target = torch.tensor(msg.data, device=self.device).unsqueeze(0)
+        self.palm_target = np.array(msg.data)
 
     def hand_target_callback(self, msg: Float64MultiArray) -> None:
-        self.hand_target = torch.tensor(msg.data, device=self.device).unsqueeze(0)
+        self.hand_target = np.array(msg.data)
 
     def _setup_fabric_action_space(self):
+        self.num_envs = 1  # Single environment for this example
+
         # Initialize warp
         initialize_warp(warp_cache_name="")
 
@@ -174,65 +174,32 @@ class IiwaAllegroFabricPublisher:
             device=self.device,
         )
 
-    def sample_palm_target(self) -> torch.Tensor:
-        # x forward, y left, z up
-        # roll pitch yaw
-        palm_target = torch.zeros(self.num_envs, 6, device="cuda", dtype=torch.float)
-        palm_target[:, 0] = (
-            torch.FloatTensor(self.num_envs)
-            .uniform_(0, 0.5)
-            .to(device=palm_target.device, dtype=palm_target.dtype)
-        )
-        palm_target[:, 1] = (
-            torch.FloatTensor(self.num_envs)
-            .uniform_(-0.4, 0.4)
-            .to(device=palm_target.device, dtype=palm_target.dtype)
-        )
-        palm_target[:, 2] = (
-            torch.FloatTensor(self.num_envs)
-            .uniform_(0.3, 0.5)
-            .to(device=palm_target.device, dtype=palm_target.dtype)
-        )
-        palm_target[:, 3:6] = (
-            torch.FloatTensor(self.num_envs, 3)
-            .uniform_(0, 2 * np.pi)
-            .to(device=palm_target.device, dtype=palm_target.dtype)
-        )
-        return palm_target
-
-    def sample_hand_target(self) -> torch.Tensor:
-        # Joint limits for the hand and palm targets
-        fabric_hand_mins = torch.tensor(
-            [0.2475, -0.3286, -0.7238, -0.0192, -0.5532], device=self.device
-        )
-        fabric_hand_maxs = torch.tensor(
-            [3.8336, 3.0025, 0.8977, 1.0243, 0.0629], device=self.device
-        )
-
-        # Initialize random targets for palm and hand
-        fabric_hand_target = (fabric_hand_maxs - fabric_hand_mins) * torch.rand(
-            self.num_envs, fabric_hand_maxs.numel(), device=self.device
-        ) + fabric_hand_mins
-        return fabric_hand_target
-
     def run(self):
+        # Must have initial joint states before starting
+        # Do not need to have targets yet
         assert self.iiwa_joint_state is not None
         assert self.allegro_joint_state is not None
-        assert self.palm_target is not None
-        assert self.hand_target is not None
 
         while not rospy.is_shutdown():
             start_time = rospy.Time.now()
 
-            # Update fabric targets for palm and hand
-            self.fabric_palm_target.copy_(self.palm_target)
-            self.fabric_hand_target.copy_(self.hand_target)
+            if self.palm_target is not None and self.hand_target is not None:
+                # Step fabric with the targets
+                # Update fabric targets for palm and hand
+                self.fabric_palm_target.copy_(
+                    torch.from_numpy(self.palm_target).unsqueeze(0).float().to(self.device)
+                )
+                self.fabric_hand_target.copy_(
+                    torch.from_numpy(self.hand_target).unsqueeze(0).float().to(self.device)
+                )
 
-            # Step the fabric using the captured CUDA graph
-            self.fabric_cuda_graph.replay()
-            self.fabric_q.copy_(self.fabric_q_new)
-            self.fabric_qd.copy_(self.fabric_qd_new)
-            self.fabric_qdd.copy_(self.fabric_qdd_new)
+                # Step the fabric using the captured CUDA graph
+                self.fabric_cuda_graph.replay()
+                self.fabric_q.copy_(self.fabric_q_new)
+                self.fabric_qd.copy_(self.fabric_qd_new)
+                self.fabric_qdd.copy_(self.fabric_qdd_new)
+
+            # Still publish the joint states even if the targets are not received
 
             # Prepare a JointState message for ROS
             iiwa_msg = JointState()

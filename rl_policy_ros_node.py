@@ -28,9 +28,8 @@ class RLPolicyNode:
         # Variables to store the latest messages
         self.object_pose_msg = None
         self.iiwa_joint_state_msg = None
-        self.iiwa_joint_cmd_msg = None
         self.allegro_joint_state_msg = None
-        self.allegro_joint_cmd_msg = None
+        self.fabric_state_msg = None
 
         # Subscribers
         self.object_pose_sub = rospy.Subscriber(
@@ -39,14 +38,11 @@ class RLPolicyNode:
         self.iiwa_joint_state_sub = rospy.Subscriber(
             "/iiwa/joint_states", JointState, self.iiwa_joint_state_callback
         )
-        self.iiwa_joint_cmd_sub = rospy.Subscriber(
-            "/iiwa/joint_cmd", JointState, self.iiwa_joint_cmd_callback
-        )
         self.allegro_joint_state_sub = rospy.Subscriber(
-            "/allegro/joint_states", JointState, self.allegro_joint_state_callback
+            "/allegroHand_0/joint_states", JointState, self.allegro_joint_state_callback
         )
-        self.allegro_joint_cmd_sub = rospy.Subscriber(
-            "/allegro/joint_cmd", JointState, self.allegro_joint_cmd_callback
+        self.fabric_sub = rospy.Subscriber(
+            "/fabric_state", JointState, self.fabric_state_callback
         )
 
         # ROS rate (60Hz)
@@ -54,10 +50,10 @@ class RLPolicyNode:
 
         # RL Player setup
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
-        self.num_observations = 123  # Update this number based on actual dimensions
+        self.num_observations = 138  # Update this number based on actual dimensions
         self.num_actions = 11  # First 6 for palm, last 5 for hand
-        self.config_path = "/path/to/config.yaml"  # Update this path
-        self.checkpoint_path = "/path/to/checkpoint.pt"  # Update this path
+        self.config_path = "/juno/u/tylerlum/Downloads/config_resolved.yaml"  # Update this path
+        self.checkpoint_path = "/juno/u/tylerlum/Downloads/Pregrasp-LEFT_Track-POUR_move3_1gpu.pth"  # Update this path
 
         # Create the RL player
         self.player = RlPlayer(
@@ -86,35 +82,29 @@ class RLPolicyNode:
     def iiwa_joint_state_callback(self, msg: JointState):
         self.iiwa_joint_state_msg = msg
 
-    def iiwa_joint_cmd_callback(self, msg: JointState):
-        self.iiwa_joint_cmd_msg = msg
-
     def allegro_joint_state_callback(self, msg: JointState):
         self.allegro_joint_state_msg = msg
 
-    def allegro_joint_cmd_callback(self, msg: JointState):
-        self.allegro_joint_cmd_msg = msg
+    def fabric_state_callback(self, msg: JointState):
+        self.fabric_state_msg = msg
 
     def create_observation(self) -> Optional[torch.Tensor]:
         # Ensure all messages are received before processing
         if (
             self.iiwa_joint_state_msg is None
-            or self.iiwa_joint_cmd_msg is None
             or self.allegro_joint_state_msg is None
-            or self.allegro_joint_cmd_msg is None
             or self.object_pose_msg is None
+            or self.fabric_state_msg is None
         ):
-            rospy.logwarn("Waiting for all messages to be received...")
+            rospy.logwarn(f"Waiting for all messages to be received... iiwa_joint_state_msg: {self.iiwa_joint_state_msg}, allegro_joint_state_msg: {self.allegro_joint_state_msg}, object_pose_msg: {self.object_pose_msg}, fabric_state_msg: {self.fabric_state_msg}")
             return None
 
-        # Concatenate the data from joint states, commands, and object pose
+        # Concatenate the data from joint states and object pose
         iiwa_position = np.array(self.iiwa_joint_state_msg.position)
         iiwa_velocity = np.array(self.iiwa_joint_state_msg.velocity)
-        iiwa_command = np.array(self.iiwa_joint_cmd_msg.position)
 
         allegro_position = np.array(self.allegro_joint_state_msg.position)
         allegro_velocity = np.array(self.allegro_joint_state_msg.velocity)
-        allegro_command = np.array(self.allegro_joint_cmd_msg.position)
 
         object_position = np.array(
             [
@@ -132,17 +122,22 @@ class RLPolicyNode:
             ]
         )
 
+        fabric_q = np.array(self.fabric_state_msg.position)
+        fabric_qd = np.array(self.fabric_state_msg.velocity)
+        fabric_qdd = np.array(self.fabric_state_msg.effort)
+
         # Concatenate all observations into a 1D tensor
         observation = np.concatenate(
             [
                 iiwa_position,
                 iiwa_velocity,
-                iiwa_command,
                 allegro_position,
                 allegro_velocity,
-                allegro_command,
                 object_position,
                 object_orientation,
+                fabric_q,
+                fabric_qd,
+                fabric_qdd,
             ]
         )
         assert observation.shape == (self.num_observations,), f"{observation.shape}"

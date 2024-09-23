@@ -56,7 +56,7 @@ class FakeRobotNode:
         self.rate = rospy.Rate(self.rate_hz)
 
         # When only testing the arm, set this to False to ignore the Allegro hand
-        self.WAIT_FOR_ALLEGRO_CMD = False
+        self.WAIT_FOR_ALLEGRO_CMD = True
         if not self.WAIT_FOR_ALLEGRO_CMD:
             rospy.logwarn("NOT WAITING FOR ALLEGRO CMD")
             self.allegro_joint_cmd = np.zeros(NUM_HAND_JOINTS)
