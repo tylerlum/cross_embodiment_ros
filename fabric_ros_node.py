@@ -198,6 +198,10 @@ class IiwaAllegroFabricPublisher:
                 self.fabric_q.copy_(self.fabric_q_new)
                 self.fabric_qd.copy_(self.fabric_qd_new)
                 self.fabric_qdd.copy_(self.fabric_qdd_new)
+            else:
+                rospy.logwarn(
+                    f"Waiting for targets... palm_target: {self.palm_target}, hand_target: {self.hand_target}"
+                )
 
             # Still publish the joint states even if the targets are not received
 
