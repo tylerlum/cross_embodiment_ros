@@ -98,7 +98,7 @@ class FakeRobotNode:
 
             self.iiwa_joint_q += delta_iiwa
             self.allegro_joint_q += delta_allegro
-            self.iiwa_joint_qd = np.zeros(NUM_ARM_JOINTS)
+            self.iiwa_joint_qd = delta_iiwa / self.dt
             self.allegro_joint_qd = np.zeros(NUM_HAND_JOINTS)
         elif MODE == "PD_CONTROL":
             P = 10
