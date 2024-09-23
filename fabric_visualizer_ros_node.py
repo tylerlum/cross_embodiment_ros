@@ -21,6 +21,7 @@ class FabricVisualizer:
         self.joint_velocities_deg_s = []
 
         # Position and velocity limits
+        # TODO: For now, only plots the first 7 joints since we care more about the arm respecting the limits
         self.position_limits_deg = np.array([165, 115, 165, 115, 165, 115, 170])
         self.velocity_limits_deg_s = np.array([80, 80, 95, 70, 125, 130, 130])
 
