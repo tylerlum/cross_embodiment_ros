@@ -48,9 +48,7 @@ class IiwaAllegroFabricPublisher:
         self.hand_target_sub = rospy.Subscriber(
             "/hand_target", Float64MultiArray, self.hand_target_callback
         )
-        self.fabric_pub = rospy.Publisher(
-            "/fabric_state", JointState, queue_size=10
-        )
+        self.fabric_pub = rospy.Publisher("/fabric_state", JointState, queue_size=10)
 
         # ROS rate
         self.rate = rospy.Rate(60)  # 60 Hz
@@ -293,15 +291,9 @@ class IiwaAllegroFabricPublisher:
             allegro_msg.velocity = []
             allegro_msg.effort = []
 
-            fabric_msg.position = (
-                self.fabric_q.cpu().numpy()[0].tolist()
-            )
-            fabric_msg.velocity = (
-                self.fabric_qd.cpu().numpy()[0].tolist()
-            )
-            fabric_msg.effort = (
-                self.fabric_qdd.cpu().numpy()[0].tolist()
-            )
+            fabric_msg.position = self.fabric_q.cpu().numpy()[0].tolist()
+            fabric_msg.velocity = self.fabric_qd.cpu().numpy()[0].tolist()
+            fabric_msg.effort = self.fabric_qdd.cpu().numpy()[0].tolist()
 
             # Publish the joint states
             self.iiwa_cmd_pub.publish(iiwa_msg)
