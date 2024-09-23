@@ -89,9 +89,27 @@ class RlPlayer:
         batch_size = obs.shape[0]
         assert_equals(obs.shape, (batch_size, self.num_observations))
 
-        normalized_action = self.player.get_action(
-            obs=obs, is_deterministic=deterministic_actions
-        )
+        # HACK: Temporary fix because of rl_games version issue and misspelling
+        # https://github.com/Denys88/rl_games/commit/758ac4fc9d4b720d461156211e799ee24232aacb#diff-cf88a0669081362e86cafa389f3c6e10839b144892e468b41a63f29b906e2db1L44
+        # Get the signature of the get_action method
+        import inspect
+
+        get_action_signature = inspect.signature(self.player.get_action)
+        is_old_spelling = "is_determenistic" in get_action_signature.parameters
+        is_new_spelling = "is_deterministic" in get_action_signature.parameters
+        if is_new_spelling:
+            normalized_action = self.player.get_action(
+                obs=obs, is_deterministic=deterministic_actions
+            )
+        elif is_old_spelling:
+            normalized_action = self.player.get_action(
+                obs=obs, is_determenistic=deterministic_actions
+            )
+        else:
+            raise ValueError(
+                f"Cannot find is_determenistic or is_deterministic in {get_action_signature.parameters}"
+            )
+
         normalized_action = normalized_action.reshape(-1, self.num_actions)
         assert normalized_action.shape in [
             (batch_size, self.num_actions),

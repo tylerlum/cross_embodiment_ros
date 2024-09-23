@@ -185,6 +185,8 @@ class RLPolicyNode:
 
     def run(self):
         while not rospy.is_shutdown():
+            start_time = rospy.Time.now()
+
             # Create observation from the latest messages
             obs = self.create_observation()
 
@@ -201,7 +203,12 @@ class RLPolicyNode:
                 self.publish_targets(palm_target, hand_target)
 
             # Sleep to maintain 60Hz loop rate
+            before_sleep_time = rospy.Time.now()
             self.rate.sleep()
+            after_sleep_time = rospy.Time.now()
+            rospy.loginfo(
+                f"Max rate: {1 / (before_sleep_time - start_time).to_sec()} Hz ({(before_sleep_time - start_time).to_sec() * 1000}ms), Actual rate: {1 / (after_sleep_time - start_time).to_sec()} Hz"
+            )
 
 
 if __name__ == "__main__":
