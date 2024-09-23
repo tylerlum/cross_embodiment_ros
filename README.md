@@ -15,6 +15,7 @@ ROS Noetic code for cross embodiment gap project
 
 ## Debugging Nodes:
 
+* `fabric_visualizer_ros_node.py`: Subscribes to `/iiwa/joint_states` and `/fabric_state`. Visualizes robot and fabric joint position and velocity in real time, with joint limits.
 * `joint_pos_visualizer_ros_node.py`: Subscribes to `/iiwa/joint_states`. Visualizes joint positions and joint limits.
 * `joint_vel_visualizer_ros_node.py`: Subscribes to `/iiwa/joint_states`. Visualizes joint velocities.
 * `live_plot_joint_data_ros_node.py`: Subscribes to `/iiwa/joint_states` and `/iiwa/joint_cmd`. Plots joint positions and commands in real time.
