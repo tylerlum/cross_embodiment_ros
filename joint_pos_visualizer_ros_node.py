@@ -47,8 +47,8 @@ def main():
 
     # Subscribe to the /iiwa/joint_states topic
     rospy.Subscriber("/iiwa/joint_states", JointState, joint_state_callback)
-
     rospy.loginfo("Joint state subscriber started. Plotting joint angles...")
+    rate = rospy.Rate(60)  # 60Hz
 
     while not rospy.is_shutdown():
         current_joint_angles_deg = np.array(JOINT_ANGLES_DEG)
@@ -75,6 +75,7 @@ def main():
         plotter.plot(
             y_data_list=y_data_list,
         )
+        rate.sleep()
 
 
 if __name__ == "__main__":
