@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
-import rospy
 import numpy as np
+import rospy
 from geometry_msgs.msg import Pose
 from scipy.spatial.transform import Rotation as R
 

@@ -187,10 +187,16 @@ class IiwaAllegroFabricPublisher:
                 # Step fabric with the targets
                 # Update fabric targets for palm and hand
                 self.fabric_palm_target.copy_(
-                    torch.from_numpy(self.palm_target).unsqueeze(0).float().to(self.device)
+                    torch.from_numpy(self.palm_target)
+                    .unsqueeze(0)
+                    .float()
+                    .to(self.device)
                 )
                 self.fabric_hand_target.copy_(
-                    torch.from_numpy(self.hand_target).unsqueeze(0).float().to(self.device)
+                    torch.from_numpy(self.hand_target)
+                    .unsqueeze(0)
+                    .float()
+                    .to(self.device)
                 )
 
                 # Step the fabric using the captured CUDA graph
