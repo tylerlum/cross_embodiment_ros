@@ -12,6 +12,12 @@ from std_msgs.msg import Float64MultiArray, MultiArrayDimension, MultiArrayLayou
 from rl_player import RlPlayer
 
 
+def var_to_is_none_str(var) -> str:
+    if var is None:
+        return "None"
+    return "Not None"
+
+
 class RLPolicyNode:
     def __init__(self):
         # Initialize the ROS node
@@ -52,7 +58,9 @@ class RLPolicyNode:
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
         self.num_observations = 138  # Update this number based on actual dimensions
         self.num_actions = 11  # First 6 for palm, last 5 for hand
-        self.config_path = "/juno/u/tylerlum/Downloads/config_resolved.yaml"  # Update this path
+        self.config_path = (
+            "/juno/u/tylerlum/Downloads/config_resolved.yaml"  # Update this path
+        )
         self.checkpoint_path = "/juno/u/tylerlum/Downloads/Pregrasp-LEFT_Track-POUR_move3_1gpu.pth"  # Update this path
 
         # Create the RL player
@@ -96,7 +104,9 @@ class RLPolicyNode:
             or self.object_pose_msg is None
             or self.fabric_state_msg is None
         ):
-            rospy.logwarn(f"Waiting for all messages to be received... iiwa_joint_state_msg: {self.iiwa_joint_state_msg}, allegro_joint_state_msg: {self.allegro_joint_state_msg}, object_pose_msg: {self.object_pose_msg}, fabric_state_msg: {self.fabric_state_msg}")
+            rospy.logwarn(
+                f"Waiting for all messages to be received... iiwa_joint_state_msg: {var_to_is_none_str(self.iiwa_joint_state_msg)}, allegro_joint_state_msg: {var_to_is_none_str(self.allegro_joint_state_msg)}, object_pose_msg: {var_to_is_none_str(self.object_pose_msg)}, fabric_state_msg: {var_to_is_none_str(self.fabric_state_msg)}"
+            )
             return None
 
         # Concatenate the data from joint states and object pose
