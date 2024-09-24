@@ -611,7 +611,15 @@ class VisualizationNode:
 
             # Sleep to maintain the loop rate
             before_sleep_time = rospy.Time.now()
-            self.rate.sleep()
+            loops_waiting = 0
+            rospy.loginfo(f"loops_waiting: {loops_waiting} self.rate.remaining() = {self.rate.remaining()}")
+            while self.rate.remaining() > rospy.Duration(0):
+                # rospy.logdebug(f"loops_waiting: {loops_waiting}")
+                rospy.loginfo(f"loops_waiting: {loops_waiting} self.rate.remaining() = {self.rate.remaining()}")
+                loops_waiting += 1
+                import time
+                time.sleep(0.0001)
+            # self.rate.sleep()
             after_sleep_time = rospy.Time.now()
             rospy.loginfo(
                 f"Max rate: {1 / (before_sleep_time - start_time).to_sec()} Hz ({(before_sleep_time - start_time).to_sec() * 1000}ms), Actual rate: {1 / (after_sleep_time - start_time).to_sec()} Hz"
