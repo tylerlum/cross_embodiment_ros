@@ -613,22 +613,37 @@ class VisualizationNode:
             # Sleep to maintain the loop rate
             before_sleep_time = rospy.Time.now()
 
-            USE_ROS_SLEEP = False
-            if USE_ROS_SLEEP:
+            SLEEP_MODE: Literal[
+                "ROS_SLEEP", "WHILE_SLEEP", "WHILE_NO_SLEEP", "NO_SLEEP"
+            ] = "NO_SLEEP"
+            if SLEEP_MODE == "ROS_SLEEP":
                 # Seems to cause segfault?
                 self.rate.sleep()
-            else:
+            elif SLEEP_MODE == "WHILE_SLEEP":
                 loops_waiting = 0
                 while (
                     not rospy.is_shutdown()
-                    and (rospy.Time.now() - start_time).to_sec()
-                    < 1 / self.rate_hz
+                    and (rospy.Time.now() - start_time).to_sec() < 1 / self.rate_hz
                 ):
                     rospy.loginfo(
                         f"loops_waiting: {loops_waiting}, (rospy.Time.now() - start_time).to_sec() = {(rospy.Time.now() - start_time).to_sec()}"
                     )
                     loops_waiting += 1
                     time.sleep(0.0001)
+            elif SLEEP_MODE == "WHILE_NO_SLEEP":
+                loops_waiting = 0
+                while (
+                    not rospy.is_shutdown()
+                    and (rospy.Time.now() - start_time).to_sec() < 1 / self.rate_hz
+                ):
+                    rospy.loginfo(
+                        f"loops_waiting: {loops_waiting}, (rospy.Time.now() - start_time).to_sec() = {(rospy.Time.now() - start_time).to_sec()}"
+                    )
+                    loops_waiting += 1
+            elif SLEEP_MODE == "NO_SLEEP":
+                pass
+            else:
+                raise ValueError(f"Invalid SLEEP_MODE: {SLEEP_MODE}")
 
             after_sleep_time = rospy.Time.now()
             rospy.loginfo(
