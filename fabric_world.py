@@ -26,8 +26,14 @@ def T_to_transform_str(T: np.ndarray) -> str:
 
 THICKNESS = 0.02
 HEIGHT = 1
-TABLE_X_LEN = 0.5
-TABLE_Y_LEN = 0.74
+
+# Conservative
+# TABLE_X_LEN = 0.5
+# TABLE_Y_LEN = 0.74
+
+# Less conservative
+TABLE_X_LEN = 0.7
+TABLE_Y_LEN = 1.0
 
 world_dict_table_frame = {
     "right_wall": {
@@ -46,7 +52,7 @@ world_dict_table_frame = {
         "env_index": "all",
         "type": "box",
         "scaling": f"{THICKNESS} {TABLE_Y_LEN} {HEIGHT}",
-        "transform": f"-{TABLE_X_LEN} 0 {0.5 * HEIGHT} 0 0 0 1",  # x y z qx qy qz qw
+        "transform": f"-{0.75*TABLE_X_LEN} 0 {0.5 * HEIGHT} 0 0 0 1",  # x y z qx qy qz qw
     },
     "front_wall": {
         "env_index": "all",
@@ -63,7 +69,7 @@ world_dict_table_frame = {
     "ceiling": {
         "env_index": "all",
         "type": "box",
-        "scaling": f"0.9 {TABLE_Y_LEN} {THICKNESS}",
+        "scaling": f"{2*TABLE_X_LEN} {TABLE_Y_LEN} {THICKNESS}",
         "transform": f"0 0 {HEIGHT} 0 0 0 1",  # x y z qx qy qz qw
     },
 }
