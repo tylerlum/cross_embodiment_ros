@@ -3,6 +3,7 @@
 from typing import Optional, Tuple
 
 import numpy as np
+from scipy.spatial.transform import Rotation as R
 import rospy
 import torch
 from geometry_msgs.msg import Pose
@@ -10,6 +11,7 @@ from sensor_msgs.msg import JointState
 from std_msgs.msg import Float64MultiArray, MultiArrayDimension, MultiArrayLayout
 
 from rl_player import RlPlayer
+from camera_extrinsics import T_R_C
 
 
 def var_to_is_none_str(var) -> str:
@@ -135,6 +137,11 @@ class RLPolicyNode:
                 self.object_pose_msg.orientation.w,
             ]
         )
+        T_C_O = np.eye(4)
+        T_C_O[:3, 3] = object_position
+        T_C_O[:3, :3] = R.from_quat(object_orientation).as_matrix()
+
+        T_R_O = T_R_C @ T_C_O
 
         fabric_q = np.array(self.fabric_state_msg.position)
         fabric_qd = np.array(self.fabric_state_msg.velocity)
@@ -147,8 +154,8 @@ class RLPolicyNode:
                 iiwa_velocity,
                 allegro_position,
                 allegro_velocity,
-                object_position,
-                object_orientation,
+                T_R_O[:3, 3],
+                T_R_O[:3, :3].flatten(),  # TODO: Convert to match the RL training obs
                 fabric_q,
                 fabric_qd,
                 fabric_qdd,
