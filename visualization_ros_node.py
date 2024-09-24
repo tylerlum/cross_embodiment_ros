@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 
 import struct
+import time
 from pathlib import Path
 from typing import Literal, Optional, Tuple
 
@@ -611,15 +612,24 @@ class VisualizationNode:
 
             # Sleep to maintain the loop rate
             before_sleep_time = rospy.Time.now()
-            loops_waiting = 0
-            rospy.loginfo(f"loops_waiting: {loops_waiting} self.rate.remaining() = {self.rate.remaining()}")
-            while self.rate.remaining() > rospy.Duration(0):
-                # rospy.logdebug(f"loops_waiting: {loops_waiting}")
-                rospy.loginfo(f"loops_waiting: {loops_waiting} self.rate.remaining() = {self.rate.remaining()}")
-                loops_waiting += 1
-                import time
-                time.sleep(0.0001)
-            # self.rate.sleep()
+
+            USE_ROS_SLEEP = False
+            if USE_ROS_SLEEP:
+                # Seems to cause segfault?
+                self.rate.sleep()
+            else:
+                loops_waiting = 0
+                while (
+                    not rospy.is_shutdown()
+                    and (rospy.Time.now() - before_sleep_time).to_sec()
+                    < 1 / self.rate_hz
+                ):
+                    rospy.loginfo(
+                        f"loops_waiting: {loops_waiting}, (rospy.Time.now() - before_sleep_time).to_sec() = {(rospy.Time.now() - before_sleep_time).to_sec()}"
+                    )
+                    loops_waiting += 1
+                    time.sleep(0.0001)
+
             after_sleep_time = rospy.Time.now()
             rospy.loginfo(
                 f"Max rate: {1 / (before_sleep_time - start_time).to_sec()} Hz ({(before_sleep_time - start_time).to_sec() * 1000}ms), Actual rate: {1 / (after_sleep_time - start_time).to_sec()} Hz"
