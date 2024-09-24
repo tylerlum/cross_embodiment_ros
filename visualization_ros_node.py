@@ -621,11 +621,11 @@ class VisualizationNode:
                 loops_waiting = 0
                 while (
                     not rospy.is_shutdown()
-                    and (rospy.Time.now() - before_sleep_time).to_sec()
+                    and (rospy.Time.now() - start_time).to_sec()
                     < 1 / self.rate_hz
                 ):
                     rospy.loginfo(
-                        f"loops_waiting: {loops_waiting}, (rospy.Time.now() - before_sleep_time).to_sec() = {(rospy.Time.now() - before_sleep_time).to_sec()}"
+                        f"loops_waiting: {loops_waiting}, (rospy.Time.now() - start_time).to_sec() = {(rospy.Time.now() - start_time).to_sec()}"
                     )
                     loops_waiting += 1
                     time.sleep(0.0001)
