@@ -27,13 +27,11 @@ def T_to_transform_str(T: np.ndarray) -> str:
 THICKNESS = 0.05
 MAX_HEIGHT = 1
 
-# Conservative
-# TABLE_X_LEN = 0.5
-# TABLE_Y_LEN = 0.74
-
-# Less conservative
 TABLE_X_LEN = 0.7
 TABLE_Y_LEN = 1.0
+
+SIDE_TABLE_X_LEN = 0.4
+SIDE_TABLE_Y_LEN = TABLE_Y_LEN / 2
 
 world_dict_table_frame = {
     "right_wall": {
@@ -52,7 +50,7 @@ world_dict_table_frame = {
         "env_index": "all",
         "type": "box",
         "scaling": f"{THICKNESS} {TABLE_Y_LEN} {MAX_HEIGHT}",
-        "transform": f"-{0.75*TABLE_X_LEN} 0 {0.5 * MAX_HEIGHT} 0 0 0 1",  # x y z qx qy qz qw
+        "transform": f"{-SIDE_TABLE_X_LEN} 0 {0.5 * MAX_HEIGHT} 0 0 0 1",  # x y z qx qy qz qw
     },
     "front_wall": {
         "env_index": "all",
@@ -65,6 +63,12 @@ world_dict_table_frame = {
         "type": "box",
         "scaling": f"{TABLE_X_LEN} {TABLE_Y_LEN} {THICKNESS}",
         "transform": f"{0.5*TABLE_X_LEN} 0 0 0 0 0 1",  # x y z qx qy qz qw
+    },
+    "side_table": {
+        "env_index": "all",
+        "type": "box",
+        "scaling": f"{SIDE_TABLE_X_LEN} {SIDE_TABLE_Y_LEN} {THICKNESS}",
+        "transform": f"{-0.5*SIDE_TABLE_X_LEN} {0.5*SIDE_TABLE_Y_LEN} 0 0 0 0 1",  # x y z qx qy qz qw
     },
     "ceiling": {
         "env_index": "all",
