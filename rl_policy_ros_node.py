@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 
 from typing import Optional, Tuple
+from pathlib import Path
 
 import numpy as np
 from scipy.spatial.transform import Rotation as R
@@ -22,6 +23,27 @@ def var_to_is_none_str(var) -> str:
 
 def assert_equals(a, b) -> None:
     assert a == b, f"{a} != {b}"
+
+NUM_XYZ = 3
+NUM_ARM_DOFS = 7
+NUM_DOFS_PER_FINGER = 4
+NUM_FINGERS = 4
+NUM_HAND_DOFS = NUM_DOFS_PER_FINGER * NUM_FINGERS
+NUM_HAND_ARM_DOFS = NUM_ARM_DOFS + NUM_HAND_DOFS
+KUKA_ALLEGRO_NUM_DOFS = NUM_HAND_ARM_DOFS
+KUKA_ALLEGRO_ASSET_ROOT = "/juno/u/tylerlum/github_repos/fabrics-sim/src/fabrics_sim/models/robots/urdf/kuka_allegro"
+KUKA_ALLEGRO_FILENAME = "kuka_allegro.urdf"
+PALM_LINK_NAME = "palm_link"
+PALM_X_LINK_NAME = "palm_x"
+PALM_Y_LINK_NAME = "palm_y"
+PALM_Z_LINK_NAME = "palm_z"
+PALM_LINK_NAMES = [PALM_LINK_NAME, PALM_X_LINK_NAME, PALM_Y_LINK_NAME, PALM_Z_LINK_NAME]
+ALLEGRO_FINGERTIP_LINK_NAMES = [
+    "index_biotac_tip",
+    "middle_biotac_tip",
+    "ring_biotac_tip",
+    "thumb_biotac_tip",
+]
 
 
 class RLPolicyNode:
@@ -62,12 +84,10 @@ class RLPolicyNode:
 
         # RL Player setup
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
-        self.num_observations = 138  # Update this number based on actual dimensions
+        self.num_observations = 130  # Update this number based on actual dimensions
         self.num_actions = 11  # First 6 for palm, last 5 for hand
-        self.config_path = (
-            "/juno/u/tylerlum/Downloads/config_resolved.yaml"  # Update this path
-        )
-        self.checkpoint_path = "/juno/u/tylerlum/Downloads/Pregrasp-LEFT_Track-POUR_move3_1gpu.pth"  # Update this path
+        self.config_path = "/move/u/tylerlum/github_repos/bidexhands_isaacgymenvs/isaacgymenvs/runs/RIGHT_1-freq_coll-on_damp-25_move3_2024-10-02_04-42-29-349841/config_resolved.yaml"  # Update this path
+        self.checkpoint_path = "/move/u/tylerlum/github_repos/bidexhands_isaacgymenvs/isaacgymenvs/runs/RIGHT_1-freq_coll-on_damp-25_move3_2024-10-02_04-42-29-349841/nn/last_RIGHT_1-freq_coll-on_damp-25_move3_ep_13000_rew_124.79679.pth"  # Update this path
 
         # Create the RL player
         self.player = RlPlayer(
@@ -79,9 +99,11 @@ class RLPolicyNode:
         )
 
         # Define limits for palm and hand targets
-        self.palm_mins = torch.tensor([0, -0.4, 0.3, 0, 0, 0], device=self.device)
+        self.palm_mins = torch.tensor(
+            [1.0, -0.7, 0, -3.1416, -3.1416, -3.1416], device=self.device
+        )
         self.palm_maxs = torch.tensor(
-            [0.5, 0.4, 0.5, 2 * np.pi, 2 * np.pi, 2 * np.pi], device=self.device
+            [0.0, 0.7, 1.0, 3.1416, 3.1416, 3.1416], device=self.device
         )
         self.hand_mins = torch.tensor(
             [0.2475, -0.3286, -0.7238, -0.0192, -0.5532], device=self.device
@@ -89,6 +111,8 @@ class RLPolicyNode:
         self.hand_maxs = torch.tensor(
             [3.8336, 3.0025, 0.8977, 1.0243, 0.0629], device=self.device
         )
+
+        self._setup_taskmap()
 
     def object_pose_callback(self, msg: Pose):
         self.object_pose_msg = msg
@@ -122,14 +146,14 @@ class RLPolicyNode:
         allegro_position = np.array(self.allegro_joint_state_msg.position)
         allegro_velocity = np.array(self.allegro_joint_state_msg.velocity)
 
-        object_position = np.array(
+        object_position_C = np.array(
             [
                 self.object_pose_msg.position.x,
                 self.object_pose_msg.position.y,
                 self.object_pose_msg.position.z,
             ]
         )
-        object_orientation = np.array(
+        object_quat_xyzw_C = np.array(
             [
                 self.object_pose_msg.orientation.x,
                 self.object_pose_msg.orientation.y,
@@ -138,32 +162,98 @@ class RLPolicyNode:
             ]
         )
         T_C_O = np.eye(4)
-        T_C_O[:3, 3] = object_position
-        T_C_O[:3, :3] = R.from_quat(object_orientation).as_matrix()
+        T_C_O[:3, 3] = object_position_C
+        T_C_O[:3, :3] = R.from_quat(object_quat_xyzw_C).as_matrix()
 
         T_R_O = T_R_C @ T_C_O
+        object_position_R = T_R_O[:3, 3]
+        object_quat_xyzw_R = R.from_matrix(T_R_O[:3, :3]).as_quat()
 
         fabric_q = np.array(self.fabric_state_msg.position)
         fabric_qd = np.array(self.fabric_state_msg.velocity)
         fabric_qdd = np.array(self.fabric_state_msg.effort)
 
+        taskmap_positions, _, _ = self.taskmap_helper(
+            q=torch.from_numpy(allegro_position).float().unsqueeze(0).to(self.device),
+            qd=torch.from_numpy(allegro_velocity).float().unsqueeze(0).to(self.device),
+        )
+        taskmap_positions = taskmap_positions.squeeze(0).cpu().numpy()
+        palm_pos = taskmap_positions[self.taskmap_link_names.index(PALM_LINK_NAME)]
+        palm_x_pos = taskmap_positions[self.taskmap_link_names.index(PALM_X_LINK_NAME)]
+        palm_y_pos = taskmap_positions[self.taskmap_link_names.index(PALM_Y_LINK_NAME)]
+        palm_z_pos = taskmap_positions[self.taskmap_link_names.index(PALM_Z_LINK_NAME)]
+        fingertip_positions = np.stack(
+            [
+                taskmap_positions[self.taskmap_link_names.index(link_name)]
+                for link_name in ALLEGRO_FINGERTIP_LINK_NAMES
+            ],
+            axis=0,
+        )
+
+        obs_dict = {}
+        obs_dict["q"] = np.concatenate([iiwa_position, allegro_position])
+        obs_dict["qd"] = np.concatenate([iiwa_velocity, allegro_velocity])
+        obs_dict["fingertip_positions"] = fingertip_positions.reshape(
+            NUM_FINGERS * NUM_XYZ
+        )
+        obs_dict["palm_pos"] = palm_pos
+        obs_dict["palm_x_pos"] = palm_x_pos
+        obs_dict["palm_y_pos"] = palm_y_pos
+        obs_dict["palm_z_pos"] = palm_z_pos
+        obs_dict["object_pos"] = object_position_R
+        obs_dict["object_quat_xyzw"] = object_quat_xyzw_R
+        obs_dict["goal_pos"] = goal_object_pos
+        obs_dict["goal_quat_xyzw"] = goal_object_quat_xyzw
+        obs_dict["fabric_q"] = fabric_q
+        obs_dict["fabric_qd"] = fabric_qd
+
+        for k, v in obs_dict.items():
+            assert len(v.shape) == 1, f"Shape of {k} is {v.shape}, expected 1D tensor"
+
         # Concatenate all observations into a 1D tensor
         observation = np.concatenate(
-            [
-                iiwa_position,
-                iiwa_velocity,
-                allegro_position,
-                allegro_velocity,
-                T_R_O[:3, 3],
-                T_R_O[:3, :3].flatten(),  # TODO: Convert to match the RL training obs
-                fabric_q,
-                fabric_qd,
-                fabric_qdd,
-            ]
+            [obs for obs in obs_dict.values()],
+            axis=-1,
         )
         assert_equals(observation.shape, (self.num_observations,))
 
         return torch.from_numpy(observation).float().unsqueeze(0).to(self.device)
+
+    def _setup_taskmap(self) -> None:
+        from fabrics_sim.taskmaps.robot_frame_origins_taskmap import (
+            RobotFrameOriginsTaskMap,
+        )
+
+        # Create task map that consists of the origins of the following frames stacked together.
+        self.taskmap_link_names = PALM_LINK_NAMES + ALLEGRO_FINGERTIP_LINK_NAMES
+        self.taskmap = RobotFrameOriginsTaskMap(
+            urdf_path=str(Path(KUKA_ALLEGRO_ASSET_ROOT) / KUKA_ALLEGRO_FILENAME),
+            link_names=self.taskmap_link_names,
+            batch_size=1,
+            device=self.device,
+        )
+
+    def taskmap_helper(
+        self, q: torch.Tensor, qd: torch.Tensor
+    ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+        N = q.shape[0]
+        assert_equals(q.shape, (N, KUKA_ALLEGRO_NUM_DOFS))
+        assert_equals(qd.shape, (N, KUKA_ALLEGRO_NUM_DOFS))
+
+        x, jac = self.taskmap(q, None)
+        n_points = len(self.taskmap_link_names)
+        assert_equals(x.shape, (N, NUM_XYZ * n_points))
+        assert_equals(jac.shape, (N, NUM_XYZ * n_points, KUKA_ALLEGRO_NUM_DOFS))
+
+        # Calculate the velocity in the task space
+        xd = torch.bmm(jac, qd.unsqueeze(2)).squeeze(2)
+        assert_equals(xd.shape, (N, NUM_XYZ * n_points))
+
+        return (
+            x.reshape(N, n_points, NUM_XYZ),
+            xd.reshape(N, n_points, NUM_XYZ),
+            jac.reshape(N, n_points, NUM_XYZ, KUKA_ALLEGRO_NUM_DOFS),
+        )
 
     def rescale_action(self, action: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
         # Rescale the normalized actions from [-1, 1] to the actual target ranges
