@@ -305,7 +305,7 @@ class VisualizationNode:
         _scene_id = p.loadURDF(str(scene_urdf_path), useFixedBase=True)
 
         # Load the object mesh
-        FAR_AWAY_OBJECT_POSITION = np.zeros(3) + 100  # Far away
+        FAR_AWAY_OBJECT_POSITION = np.ones(3)
         object_mesh_path = rospy.get_param("/mesh_file", None)
         if object_mesh_path is None:
             DEFAULT_MESH_PATH = (
@@ -355,7 +355,7 @@ class VisualizationNode:
             FAR_AWAY_OBJECT_POSITION + np.array([0.2, 0.2, 0.2]),
             [0, 0, 0, 1],
         )
-        # p.changeVisualShape(goal_object_id, -1, rgbaColor=GREEN_TRANSLUCENT_RGBA)
+        p.changeVisualShape(self.goal_object_id, -1, rgbaColor=GREEN_RGBA)
 
         # Make the robot blue
         # Change the color of each link (including the base)
@@ -387,7 +387,7 @@ class VisualizationNode:
             ] = i
 
         # Create the hand target
-        FAR_AWAY_PALM_TARGET = np.zeros(6) + 100  # Far away
+        FAR_AWAY_PALM_TARGET = np.concatenate([np.ones(3), np.zeros(3)])
         self.hand_target_lines = visualize_transform(
             xyz=FAR_AWAY_PALM_TARGET[:3],
             rotation_matrix=R.from_euler("ZYX", FAR_AWAY_PALM_TARGET[3:]).as_matrix(),
