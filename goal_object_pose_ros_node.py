@@ -16,7 +16,8 @@ class GoalObjectPosePublisher:
         rospy.init_node("goal_object_pose_publisher")
 
         self.pose_pub = rospy.Publisher("/goal_object_pose", Pose, queue_size=1)
-        self.rate = rospy.Rate(60)  # 60Hz
+        self.rate_hz = 60
+        self.rate = rospy.Rate(self.rate_hz)
 
         # Set up VecOliviaReferenceMotion
         TRAJECTORY_FOLDERPATH = Path(
@@ -26,16 +27,25 @@ class GoalObjectPosePublisher:
             "/juno/u/oliviayl/repos/cross_embodiment/hamer/outputs4/0/"
         )
 
+        self.data_hz = 30
         self.trajectory = VecOliviaReferenceMotion(
             trajectory_folder=TRAJECTORY_FOLDERPATH,
             hand_folder=HAND_TRAJECTORY_FOLDERPATH,
             batch_size=1,
             device="cuda",
-            dt=1 / 30,
+            dt=1 / self.data_hz,
         )
 
         self.T_C_O_list = self.extract_object_poses()
         self.current_index = 0
+
+        self.N_STEPS_PER_UPDATE = 4
+        # Extend list
+        new_list = []
+        for T_C_O in self.T_C_O_list:
+            new_list += [T_C_O] * self.N_STEPS_PER_UPDATE
+        self.T_C_O_list = new_list
+
         self.N = len(self.T_C_O_list)
 
     def extract_object_poses(self):

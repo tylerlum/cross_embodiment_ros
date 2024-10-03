@@ -24,6 +24,7 @@ def var_to_is_none_str(var) -> str:
 def assert_equals(a, b) -> None:
     assert a == b, f"{a} != {b}"
 
+
 NUM_XYZ = 3
 NUM_ARM_DOFS = 7
 NUM_DOFS_PER_FINGER = 4
@@ -61,6 +62,7 @@ class RLPolicyNode:
 
         # Variables to store the latest messages
         self.object_pose_msg = None
+        self.goal_object_pose_msg = None
         self.iiwa_joint_state_msg = None
         self.allegro_joint_state_msg = None
         self.fabric_state_msg = None
@@ -68,6 +70,9 @@ class RLPolicyNode:
         # Subscribers
         self.object_pose_sub = rospy.Subscriber(
             "/object_pose", Pose, self.object_pose_callback
+        )
+        self.goal_object_pose_sub = rospy.Subscriber(
+            "/goal_object_pose", Pose, self.goal_object_pose_callback
         )
         self.iiwa_joint_state_sub = rospy.Subscriber(
             "/iiwa/joint_states", JointState, self.iiwa_joint_state_callback
@@ -117,6 +122,9 @@ class RLPolicyNode:
     def object_pose_callback(self, msg: Pose):
         self.object_pose_msg = msg
 
+    def goal_object_pose_callback(self, msg: Pose):
+        self.goal_object_pose_msg = msg
+
     def iiwa_joint_state_callback(self, msg: JointState):
         self.iiwa_joint_state_msg = msg
 
@@ -132,10 +140,11 @@ class RLPolicyNode:
             self.iiwa_joint_state_msg is None
             or self.allegro_joint_state_msg is None
             or self.object_pose_msg is None
+            or self.goal_object_pose_msg is None
             or self.fabric_state_msg is None
         ):
             rospy.logwarn(
-                f"Waiting for all messages to be received... iiwa_joint_state_msg: {var_to_is_none_str(self.iiwa_joint_state_msg)}, allegro_joint_state_msg: {var_to_is_none_str(self.allegro_joint_state_msg)}, object_pose_msg: {var_to_is_none_str(self.object_pose_msg)}, fabric_state_msg: {var_to_is_none_str(self.fabric_state_msg)}"
+                f"Waiting for all messages to be received... iiwa_joint_state_msg: {var_to_is_none_str(self.iiwa_joint_state_msg)}, allegro_joint_state_msg: {var_to_is_none_str(self.allegro_joint_state_msg)}, object_pose_msg: {var_to_is_none_str(self.object_pose_msg)}, goal_object_pose_msg: {var_to_is_none_str(self.goal_object_pose_msg)}, fabric_state_msg: {var_to_is_none_str(self.fabric_state_msg)}"
             )
             return None
 
@@ -165,17 +174,43 @@ class RLPolicyNode:
         T_C_O[:3, 3] = object_position_C
         T_C_O[:3, :3] = R.from_quat(object_quat_xyzw_C).as_matrix()
 
+        goal_object_pos_C = np.array(
+            [
+                self.goal_object_pose_msg.position.x,
+                self.goal_object_pose_msg.position.y,
+                self.goal_object_pose_msg.position.z,
+            ]
+        )
+        goal_object_quat_xyzw_C = np.array(
+            [
+                self.goal_object_pose_msg.orientation.x,
+                self.goal_object_pose_msg.orientation.y,
+                self.goal_object_pose_msg.orientation.z,
+                self.goal_object_pose_msg.orientation.w,
+            ]
+        )
+        T_C_G = np.eye(4)
+        T_C_G[:3, 3] = goal_object_pos_C
+        T_C_G[:3, :3] = R.from_quat(goal_object_quat_xyzw_C).as_matrix()
+
         T_R_O = T_R_C @ T_C_O
         object_position_R = T_R_O[:3, 3]
         object_quat_xyzw_R = R.from_matrix(T_R_O[:3, :3]).as_quat()
+
+        T_R_G = T_R_C @ T_C_G
+        goal_object_pos_R = T_R_G[:3, 3]
+        goal_object_quat_xyzw_R = R.from_matrix(T_R_G[:3, :3]).as_quat()
+
+        q = np.concatenate([iiwa_position, allegro_position])
+        qd = np.concatenate([iiwa_velocity, allegro_velocity])
 
         fabric_q = np.array(self.fabric_state_msg.position)
         fabric_qd = np.array(self.fabric_state_msg.velocity)
         fabric_qdd = np.array(self.fabric_state_msg.effort)
 
         taskmap_positions, _, _ = self.taskmap_helper(
-            q=torch.from_numpy(allegro_position).float().unsqueeze(0).to(self.device),
-            qd=torch.from_numpy(allegro_velocity).float().unsqueeze(0).to(self.device),
+            q=torch.from_numpy(q).float().unsqueeze(0).to(self.device),
+            qd=torch.from_numpy(qd).float().unsqueeze(0).to(self.device),
         )
         taskmap_positions = taskmap_positions.squeeze(0).cpu().numpy()
         palm_pos = taskmap_positions[self.taskmap_link_names.index(PALM_LINK_NAME)]
@@ -202,8 +237,8 @@ class RLPolicyNode:
         obs_dict["palm_z_pos"] = palm_z_pos
         obs_dict["object_pos"] = object_position_R
         obs_dict["object_quat_xyzw"] = object_quat_xyzw_R
-        obs_dict["goal_pos"] = goal_object_pos
-        obs_dict["goal_quat_xyzw"] = goal_object_quat_xyzw
+        obs_dict["goal_pos"] = goal_object_pos_R
+        obs_dict["goal_quat_xyzw"] = goal_object_quat_xyzw_R
         obs_dict["fabric_q"] = fabric_q
         obs_dict["fabric_qd"] = fabric_qd
 
@@ -220,6 +255,8 @@ class RLPolicyNode:
         return torch.from_numpy(observation).float().unsqueeze(0).to(self.device)
 
     def _setup_taskmap(self) -> None:
+        import warp as wp
+        wp.init()
         from fabrics_sim.taskmaps.robot_frame_origins_taskmap import (
             RobotFrameOriginsTaskMap,
         )

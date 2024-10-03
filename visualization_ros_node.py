@@ -320,32 +320,50 @@ class VisualizationNode:
         assert isinstance(
             object_mesh_path, str
         ), f"object_mesh_path: {object_mesh_path}"
+        rospy.logerr(f"object_mesh_path: {object_mesh_path}")
 
         goal_object_mesh_path = object_mesh_path
 
         # Object often has too many faces to have 2 objects and may have issues loading
         MAX_N_FACES = 10_000
-        if trimesh.load(object_mesh_path).faces.shape[0] > MAX_N_FACES:
+        mesh = trimesh.load(object_mesh_path)
+        n_faces = mesh.faces.shape[0]
+        if n_faces > MAX_N_FACES:
             rospy.logwarn(
-                f"object_mesh_path: {object_mesh_path} has more than {MAX_N_FACES} faces"
+                f"object_mesh_path: {object_mesh_path} has more than {MAX_N_FACES} faces, has {n_faces} faces"
             )
 
-            import open3d as o3d
+            USE_OPEN3D = False
+            if USE_OPEN3D:
+                import open3d as o3d
 
-            orig_mesh = o3d.io.read_triangle_mesh(object_mesh_path)
-            simplified_mesh = orig_mesh.simplify_quadric_decimation(
-                target_number_of_triangles=MAX_N_FACES,
-            )
-            object_mesh_Path = Path(object_mesh_path)
-            simplified_mesh_path = str(
-                object_mesh_Path.parent
-                / f"{object_mesh_Path.stem}_simplified{object_mesh_Path.suffix}"
-            )
-            o3d.io.write_triangle_mesh(simplified_mesh_path, simplified_mesh)
-            rospy.logwarn(f"Saved simplified mesh to: {simplified_mesh_path}")
+                orig_mesh = o3d.io.read_triangle_mesh(object_mesh_path)
+                simplified_mesh = orig_mesh.simplify_quadric_decimation(
+                    target_number_of_triangles=MAX_N_FACES,
+                )
+                object_mesh_Path = Path(object_mesh_path)
+                simplified_mesh_path = str(
+                    object_mesh_Path.parent
+                    / f"{object_mesh_Path.stem}_simplified{object_mesh_Path.suffix}"
+                )
+                o3d.io.write_triangle_mesh(simplified_mesh_path, simplified_mesh)
+                rospy.logwarn(f"Saved simplified mesh to: {simplified_mesh_path}")
 
-            # object_mesh_path = simplified_mesh_path
-            goal_object_mesh_path = simplified_mesh_path
+                object_mesh_path = simplified_mesh_path
+                goal_object_mesh_path = simplified_mesh_path
+            else:
+                import fast_simplification
+                points_out, faces_out = fast_simplification.simplify(mesh.vertices, mesh.faces, target_reduction=0.9)
+                new_mesh = trimesh.Trimesh(vertices=points_out, faces=faces_out)
+                object_mesh_Path = Path(object_mesh_path)
+                simplified_mesh_path = str(
+                    object_mesh_Path.parent
+                    / f"{object_mesh_Path.stem}_simplified{object_mesh_Path.suffix}"
+                )
+                new_mesh.export(simplified_mesh_path)
+
+                # object_mesh_path = simplified_mesh_path
+                goal_object_mesh_path = simplified_mesh_path
 
         object_urdf_path = create_urdf(Path(object_mesh_path))
         if goal_object_mesh_path != object_mesh_path:
@@ -364,7 +382,7 @@ class VisualizationNode:
             FAR_AWAY_OBJECT_POSITION + np.array([0.2, 0.2, 0.2]),
             [0, 0, 0, 1],
         )
-        p.changeVisualShape(self.goal_object_id, -1, rgbaColor=GREEN_RGBA)
+        p.changeVisualShape(self.goal_object_id, -1, rgbaColor=GREEN_TRANSLUCENT_RGBA)
 
         # Make the robot blue
         # Change the color of each link (including the base)
