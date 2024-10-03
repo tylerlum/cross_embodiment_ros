@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 
+import trimesh
 import struct
 import time
 from pathlib import Path
@@ -21,6 +22,7 @@ NUM_ARM_JOINTS = 7
 NUM_HAND_JOINTS = 16
 BLUE_TRANSLUCENT_RGBA = [0, 0, 1, 0.5]
 RED_TRANSLUCENT_RGBA = [1, 0, 0, 0.2]
+GREEN_TRANSLUCENT_RGBA = [0, 1, 0, 0.5]
 
 BLUE_RGB = [0, 0, 1]
 RED_RGB = [1, 0, 0]
@@ -194,12 +196,12 @@ def create_urdf(obj_path: Path) -> Path:
     filename = obj_path.name
     parent_folder = obj_path.parent
     urdf_path = parent_folder / f"{obj_path.stem}.urdf"
-    urdf_text = f"""<?xml version="0.0" ?>
+    urdf_text = f"""<?xml version="1.0" ?>
 <robot name="model.urdf">
   <link name="baseLink">
     <contact>
       <lateral_friction value="0.8"/>
-      <rolling_friction value="0.001"/>g
+      <rolling_friction value="0.001"/>
       <contact_cfm value="0.0"/>
       <contact_erp value="1.0"/>
     </contact>
@@ -240,6 +242,7 @@ class VisualizationNode:
         self.allegro_joint_state = None
         self.palm_target = None
         self.object_pose = None
+        self.goal_object_pose = None
         self.point_cloud_and_colors = None
 
         # Subscribers
@@ -260,6 +263,9 @@ class VisualizationNode:
         )
         self.object_pose_sub = rospy.Subscriber(
             "/object_pose", Pose, self.object_pose_callback
+        )
+        self.goal_object_pose_sub = rospy.Subscriber(
+            "/goal_object_pose", Pose, self.goal_object_pose_callback
         )
         self.point_cloud_sub = rospy.Subscriber(
             "/zed/zed_node/point_cloud/cloud_registered",
@@ -289,8 +295,8 @@ class VisualizationNode:
             "/juno/u/tylerlum/github_repos/fabrics-sim/src/fabrics_sim/models/robots/urdf/kuka_allegro/kuka_allegro.urdf"
         )
         assert robot_urdf_path.exists(), f"robot_urdf_path not found: {robot_urdf_path}"
-        robot_id = p.loadURDF(str(robot_urdf_path), useFixedBase=True)
-        robot_cmd_id = p.loadURDF(str(robot_urdf_path), useFixedBase=True)
+        self.robot_id = p.loadURDF(str(robot_urdf_path), useFixedBase=True)
+        self.robot_cmd_id = p.loadURDF(str(robot_urdf_path), useFixedBase=True)
 
         # Load the scene mesh
         scene_urdf_path = create_urdf(
@@ -315,18 +321,48 @@ class VisualizationNode:
             object_mesh_path, str
         ), f"object_mesh_path: {object_mesh_path}"
 
+        # Object often has too many faces and may have issues loading
+        MAX_N_FACES = 10_000
+        if trimesh.load(object_mesh_path).faces.shape[0] > MAX_N_FACES:
+            rospy.logwarn(
+                f"object_mesh_path: {object_mesh_path} has more than {MAX_N_FACES} faces"
+            )
+
+            import open3d as o3d
+
+            orig_mesh = o3d.io.read_triangle_mesh(object_mesh_path)
+            simplified_mesh = orig_mesh.simplify_quadric_decimation(
+                target_number_of_triangles=MAX_N_FACES,
+            )
+            object_mesh_Path = Path(object_mesh_path)
+            simplified_mesh_path = str(
+                object_mesh_Path.parent
+                / f"{object_mesh_Path.stem}_simplified{object_mesh_Path.suffix}"
+            )
+            o3d.io.write_triangle_mesh(simplified_mesh_path, simplified_mesh)
+            rospy.logwarn(f"Saved simplified mesh to: {simplified_mesh_path}")
+            object_mesh_path = simplified_mesh_path
+
         object_urdf_path = create_urdf(Path(object_mesh_path))
         self.object_id = p.loadURDF(str(object_urdf_path), useFixedBase=True)
         p.resetBasePositionAndOrientation(
             self.object_id, FAR_AWAY_OBJECT_POSITION, [0, 0, 0, 1]
         )
 
+        self.goal_object_id = p.loadURDF(str(object_urdf_path), useFixedBase=True)
+        p.resetBasePositionAndOrientation(
+            self.goal_object_id,
+            FAR_AWAY_OBJECT_POSITION + np.array([0.2, 0.2, 0.2]),
+            [0, 0, 0, 1],
+        )
+        # p.changeVisualShape(goal_object_id, -1, rgbaColor=GREEN_TRANSLUCENT_RGBA)
+
         # Make the robot blue
         # Change the color of each link (including the base)
-        num_joints = p.getNumJoints(robot_id)
+        num_joints = p.getNumJoints(self.robot_id)
         for link_index in range(-1, num_joints):  # -1 is for the base
             p.changeVisualShape(
-                robot_cmd_id, link_index, rgbaColor=BLUE_TRANSLUCENT_RGBA
+                self.robot_cmd_id, link_index, rgbaColor=BLUE_TRANSLUCENT_RGBA
             )
 
         # Set the robot to a default pose
@@ -335,19 +371,19 @@ class VisualizationNode:
         assert DEFAULT_ARM_Q.shape == (NUM_ARM_JOINTS,)
         assert DEFAULT_HAND_Q.shape == (NUM_HAND_JOINTS,)
         DEFAULT_Q = np.concatenate([DEFAULT_ARM_Q, DEFAULT_HAND_Q])
-        self.set_robot_state(robot_id, DEFAULT_Q)
-        self.set_robot_state(robot_cmd_id, DEFAULT_Q)
+        self.set_robot_state(self.robot_id, DEFAULT_Q)
+        self.set_robot_state(self.robot_cmd_id, DEFAULT_Q)
 
         # Keep track of the link names and IDs
         self.robot_link_name_to_id = {}
-        for i in range(p.getNumJoints(robot_id)):
+        for i in range(p.getNumJoints(self.robot_id)):
             self.robot_link_name_to_id[
-                p.getJointInfo(robot_id, i)[12].decode("utf-8")
+                p.getJointInfo(self.robot_id, i)[12].decode("utf-8")
             ] = i
         self.robot_cmd_link_name_to_id = {}
-        for i in range(p.getNumJoints(robot_cmd_id)):
+        for i in range(p.getNumJoints(self.robot_cmd_id)):
             self.robot_cmd_link_name_to_id[
-                p.getJointInfo(robot_cmd_id, i)[12].decode("utf-8")
+                p.getJointInfo(self.robot_cmd_id, i)[12].decode("utf-8")
             ] = i
 
         # Create the hand target
@@ -402,8 +438,6 @@ class VisualizationNode:
                 position=object_pos,
                 orientation=object_quat_xyzw,
             )
-
-        self.robot_id, self.robot_cmd_id = robot_id, robot_cmd_id
 
     def set_pybullet_camera(
         self,
@@ -490,6 +524,22 @@ class VisualizationNode:
         latest_pose[:3, :3] = R.from_quat(quat_xyzw).as_matrix()
         self.object_pose = latest_pose
 
+    def goal_object_pose_callback(self, msg: Pose):
+        """ "Callback to update the goal object pose."""
+        xyz = np.array([msg.position.x, msg.position.y, msg.position.z])
+        quat_xyzw = np.array(
+            [
+                msg.orientation.x,
+                msg.orientation.y,
+                msg.orientation.z,
+                msg.orientation.w,
+            ]
+        )
+        latest_pose = np.eye(4)
+        latest_pose[:3, 3] = xyz
+        latest_pose[:3, :3] = R.from_quat(quat_xyzw).as_matrix()
+        self.goal_object_pose = latest_pose
+
     def point_cloud_callback(self, msg: PointCloud2):
         self.point_cloud_and_colors = np.array(
             list(
@@ -542,6 +592,13 @@ class VisualizationNode:
         else:
             object_pose = self.object_pose
 
+        if self.goal_object_pose is None:
+            rospy.logwarn("goal_object_pose is None")
+            goal_object_pose = np.eye(4)
+            goal_object_pose[:3, 3] = np.zeros(3) + 100  # Far away
+        else:
+            goal_object_pose = self.goal_object_pose
+
         # Command Robot: Set the commanded joint positions
         q_cmd = np.concatenate([iiwa_joint_cmd, allegro_joint_cmd])
         q_state = np.concatenate([iiwa_joint_state, allegro_joint_state])
@@ -591,8 +648,19 @@ class VisualizationNode:
         T_C_O = object_pose
         T_R_O = T_R_C @ T_C_O
         object_pos = T_R_O[:3, 3]
-        object_quat_wxyz = R.from_matrix(T_R_O[:3, :3]).as_quat()
-        p.resetBasePositionAndOrientation(self.object_id, object_pos, object_quat_wxyz)
+        object_quat_xyzw = R.from_matrix(T_R_O[:3, :3]).as_quat()
+        p.resetBasePositionAndOrientation(self.object_id, object_pos, object_quat_xyzw)
+
+        # Update the goal object pose
+        # Goal object pose is in camera frame = C frame
+        # We want it in world frame = robot frame = R frame
+        T_C_G = goal_object_pose
+        T_R_G = T_R_C @ T_C_G
+        goal_object_pos = T_R_G[:3, 3]
+        goal_object_quat_xyzw = R.from_matrix(T_R_G[:3, :3]).as_quat()
+        p.resetBasePositionAndOrientation(
+            self.goal_object_id, goal_object_pos, goal_object_quat_xyzw
+        )
 
         # Update the point cloud
         if self.point_cloud_and_colors is not None:

@@ -47,12 +47,12 @@ class FakePolicyNode:
         )
         palm_target[:, 1] = (
             torch.FloatTensor(self.num_envs)
-            .uniform_(-0.4, 0.4)
+            .uniform_(-0.4, 0.0)
             .to(device=palm_target.device)
         )
         palm_target[:, 2] = (
             torch.FloatTensor(self.num_envs)
-            .uniform_(0.3, 0.6)
+            .uniform_(0.1, 0.3)
             .to(device=palm_target.device)
         )
         DEFAULT_EULER_Z = np.deg2rad(0)
