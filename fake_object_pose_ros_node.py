@@ -4,6 +4,7 @@ import numpy as np
 import rospy
 from geometry_msgs.msg import Pose
 from scipy.spatial.transform import Rotation as R
+from camera_extrinsics import T_R_C
 
 
 class FakeObjectPose:
@@ -12,11 +13,11 @@ class FakeObjectPose:
         self.pose_pub = rospy.Publisher("/object_pose", Pose, queue_size=1)
 
         # Set a fixed transformation matrix T (4x4)
-        self.T = np.array(
+        self.T_R_O = np.array(
             [
-                [1, 0, 0, 1],  # Rotation + Translation
-                [0, 1, 0, 2],
-                [0, 0, 1, 3],
+                [1, 0, 0, 0.5],  # Rotation + Translation
+                [0, 1, 0, 0],
+                [0, 0, 1, 0.3],
                 [0, 0, 0, 1],
             ]
         )
@@ -26,8 +27,11 @@ class FakeObjectPose:
 
     def publish_pose(self):
         # Extract translation and quaternion from the transformation matrix
-        trans = self.T[:3, 3]
-        quat_xyzw = R.from_matrix(self.T[:3, :3]).as_quat()
+        T_C_R = np.linalg.inv(T_R_C)
+
+        T_C_O = T_C_R @ self.T_R_O
+        trans = T_C_O[:3, 3]
+        quat_xyzw = R.from_matrix(T_C_O[:3, :3]).as_quat()
 
         # Create Pose message
         msg = Pose()
