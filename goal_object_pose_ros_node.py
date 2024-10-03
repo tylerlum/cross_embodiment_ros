@@ -20,7 +20,7 @@ class GoalObjectPosePublisher:
 
         # Set up VecOliviaReferenceMotion
         TRAJECTORY_FOLDERPATH = Path(
-            "/juno/u/oliviayl/repos/cross_embodiment/FP_outputs/0/"
+            "/juno/u/oliviayl/repos/cross_embodiment/FoundationPose/debug_archive/zed_raw/0"
         )
         HAND_TRAJECTORY_FOLDERPATH = Path(
             "/juno/u/oliviayl/repos/cross_embodiment/hamer/outputs4/0/"

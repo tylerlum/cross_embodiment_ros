@@ -321,7 +321,9 @@ class VisualizationNode:
             object_mesh_path, str
         ), f"object_mesh_path: {object_mesh_path}"
 
-        # Object often has too many faces and may have issues loading
+        goal_object_mesh_path = object_mesh_path
+
+        # Object often has too many faces to have 2 objects and may have issues loading
         MAX_N_FACES = 10_000
         if trimesh.load(object_mesh_path).faces.shape[0] > MAX_N_FACES:
             rospy.logwarn(
@@ -341,15 +343,22 @@ class VisualizationNode:
             )
             o3d.io.write_triangle_mesh(simplified_mesh_path, simplified_mesh)
             rospy.logwarn(f"Saved simplified mesh to: {simplified_mesh_path}")
-            object_mesh_path = simplified_mesh_path
+
+            # object_mesh_path = simplified_mesh_path
+            goal_object_mesh_path = simplified_mesh_path
 
         object_urdf_path = create_urdf(Path(object_mesh_path))
+        if goal_object_mesh_path != object_mesh_path:
+            goal_object_urdf_path = create_urdf(Path(goal_object_mesh_path))
+        else:
+            goal_object_urdf_path = object_urdf_path
+
         self.object_id = p.loadURDF(str(object_urdf_path), useFixedBase=True)
         p.resetBasePositionAndOrientation(
             self.object_id, FAR_AWAY_OBJECT_POSITION, [0, 0, 0, 1]
         )
 
-        self.goal_object_id = p.loadURDF(str(object_urdf_path), useFixedBase=True)
+        self.goal_object_id = p.loadURDF(str(goal_object_urdf_path), useFixedBase=True)
         p.resetBasePositionAndOrientation(
             self.goal_object_id,
             FAR_AWAY_OBJECT_POSITION + np.array([0.2, 0.2, 0.2]),
