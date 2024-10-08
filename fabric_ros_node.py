@@ -28,6 +28,8 @@ class IiwaAllegroFabricPublisher:
         self.allegro_joint_state = None
         self.palm_target = None
         self.hand_target = None
+        self.received_iiwa_joint_state_time = None
+        self.received_allegro_joint_state_time = None
 
         # Publisher and subscriber
         self.iiwa_cmd_pub = rospy.Publisher(
@@ -96,9 +98,11 @@ class IiwaAllegroFabricPublisher:
 
     def iiwa_joint_state_callback(self, msg: JointState) -> None:
         self.iiwa_joint_state = np.array(msg.position)
+        self.received_iiwa_joint_state_time = rospy.Time.now()
 
     def allegro_joint_state_callback(self, msg: JointState) -> None:
         self.allegro_joint_state = np.array(msg.position)
+        self.received_allegro_joint_state_time = rospy.Time.now()
 
     def palm_target_callback(self, msg: Float64MultiArray) -> None:
         self.palm_target = np.array(msg.data)
@@ -179,12 +183,13 @@ class IiwaAllegroFabricPublisher:
         # Do not need to have targets yet
         assert self.iiwa_joint_state is not None
         assert self.allegro_joint_state is not None
+        assert self.received_iiwa_joint_state_time is not None
+        assert self.received_allegro_joint_state_time is not None
 
         while not rospy.is_shutdown():
             start_time = rospy.Time.now()
 
             if self.palm_target is not None and self.hand_target is not None:
-                # Step fabric with the targets
                 # Update fabric targets for palm and hand
                 self.fabric_palm_target.copy_(
                     torch.from_numpy(self.palm_target)
@@ -209,9 +214,26 @@ class IiwaAllegroFabricPublisher:
                     f"Waiting for targets... palm_target: {self.palm_target}, hand_target: {self.hand_target}"
                 )
 
-            # Still publish the joint states even if the targets are not received
+            # Stop if the joint states are not received for a long time
+            MAX_DT_JOINT_STATE_SEC = 1.0
+            time_since_iiwa_joint_state = (
+                rospy.Time.now() - self.received_iiwa_joint_state_time
+            ).to_sec()
+            time_since_allegro_joint_state = (
+                rospy.Time.now() - self.received_allegro_joint_state_time
+            ).to_sec()
+            if time_since_iiwa_joint_state > MAX_DT_JOINT_STATE_SEC:
+                rospy.logerr(
+                    f"Did not receive iiwa joint states for {time_since_iiwa_joint_state} seconds"
+                )
+                return
+            if time_since_allegro_joint_state > MAX_DT_JOINT_STATE_SEC:
+                rospy.logerr(
+                    f"Did not receive allegro joint states for {time_since_allegro_joint_state} seconds"
+                )
+                return
 
-            # Prepare a JointState message for ROS
+            # Still publish the joint states even if the targets are not received
             iiwa_msg = JointState()
             iiwa_msg.header.stamp = rospy.Time.now()
             allegro_msg = JointState()
