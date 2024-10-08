@@ -15,18 +15,12 @@ class FakeObjectPose:
         self.rate = rospy.Rate(60)
 
     def publish_pose(self):
-        MODE: Literal["T_R_O", "T_C_O"] = "T_C_O"
+        MODE: Literal["T_R_O", "T_C_O"] = "T_R_O"
 
         if MODE == "T_R_O":
             # Set a fixed transformation matrix T (4x4)
-            T_R_O = np.array(
-                [
-                    [1, 0, 0, 0.5],
-                    [0, 1, 0, 0],
-                    [0, 0, 1, 0.3],
-                    [0, 0, 0, 1],
-                ]
-            )
+            T_R_O = np.eye(4)
+            T_R_O[:3, 3] = np.array([0.5735, -0.1633,  0.2038])
 
             # Publish rate of 60Hz
             # Extract translation and quaternion from the transformation matrix
