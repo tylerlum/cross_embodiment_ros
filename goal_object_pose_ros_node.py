@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 
 import rospy
+from typing import Literal
 import numpy as np
 from geometry_msgs.msg import Pose
 from scipy.spatial.transform import Rotation as R
@@ -9,6 +10,7 @@ import torch
 from vec_olivia_reference import (
     VecOliviaReferenceMotion,
 )
+from camera_extrinsics import T_R_C
 
 
 class GoalObjectPosePublisher:
@@ -19,34 +21,52 @@ class GoalObjectPosePublisher:
         self.rate_hz = 60
         self.rate = rospy.Rate(self.rate_hz)
 
-        # Set up VecOliviaReferenceMotion
-        TRAJECTORY_FOLDERPATH = Path(
-            "/juno/u/oliviayl/repos/cross_embodiment/FoundationPose/debug_archive/zed_raw/0"
-        )
-        HAND_TRAJECTORY_FOLDERPATH = Path(
-            "/juno/u/oliviayl/repos/cross_embodiment/hamer/outputs4/0/"
-        )
-
-        self.data_hz = 30
-        self.trajectory = VecOliviaReferenceMotion(
-            trajectory_folder=TRAJECTORY_FOLDERPATH,
-            hand_folder=HAND_TRAJECTORY_FOLDERPATH,
-            batch_size=1,
-            device="cuda",
-            dt=1 / self.data_hz,
-        )
-
-        self.T_C_O_list = self.extract_object_poses()
         self.current_index = 0
 
-        self.N_STEPS_PER_UPDATE = 4
-        # Extend list
-        new_list = []
-        for T_C_O in self.T_C_O_list:
-            new_list += [T_C_O] * self.N_STEPS_PER_UPDATE
-        self.T_C_O_list = new_list
+        MODE: Literal["trajectory", "position"] = "position"
+        if MODE == "trajectory":
+            # Set up VecOliviaReferenceMotion
+            TRAJECTORY_FOLDERPATH = Path(
+                "/juno/u/oliviayl/repos/cross_embodiment/FoundationPose/debug_archive/zed_raw/0"
+            )
+            HAND_TRAJECTORY_FOLDERPATH = Path(
+                "/juno/u/oliviayl/repos/cross_embodiment/hamer/outputs4/0/"
+            )
 
-        self.N = len(self.T_C_O_list)
+            self.data_hz = 30
+            self.trajectory = VecOliviaReferenceMotion(
+                trajectory_folder=TRAJECTORY_FOLDERPATH,
+                hand_folder=HAND_TRAJECTORY_FOLDERPATH,
+                batch_size=1,
+                device="cuda",
+                dt=1 / self.data_hz,
+            )
+
+            self.T_C_O_list = self.extract_object_poses()
+            self.N_STEPS_PER_UPDATE = 4
+
+            # Extend list
+            new_list = []
+            for T_C_O in self.T_C_O_list:
+                new_list += [T_C_O] * self.N_STEPS_PER_UPDATE
+            self.T_C_O_list = new_list
+
+            self.N = len(self.T_C_O_list)
+
+        elif MODE == "position":
+            goal_object_pos = np.array([0.4637, -0.2200, 0.5199])
+            goal_object_quat_xyzw = np.array([0.0, 0.0, 0.0, 1.0])
+            T_R_O = np.eye(4)
+            T_R_O[:3, :3] = R.from_quat(goal_object_quat_xyzw).as_matrix()
+            T_R_O[:3, 3] = goal_object_pos
+
+            T_C_R = np.linalg.inv(T_R_C)
+            T_C_O = T_C_R @ T_R_O
+
+            self.T_C_O_list = [T_C_O]
+            self.N = len(self.T_C_O_list)
+        else:
+            raise ValueError(f"Invalid mode {MODE}")
 
     def extract_object_poses(self):
         T_C_O_list = []
