@@ -662,18 +662,19 @@ class VisualizationNode:
         )
 
         # Log to debug palm position and orientation in robot frame
-        rospy.loginfo(f"robot_palm_com = {robot_palm_com}")
-        rospy.loginfo(f"robot_palm_quat = {robot_palm_quat}")
+        # rospy.loginfo(f"robot_palm_com = {robot_palm_com}")
+        # rospy.loginfo(f"robot_palm_quat = {robot_palm_quat}")
         robot_palm_euler_ZYX = R.from_quat(robot_palm_quat).as_euler(
             "ZYX", degrees=False
         )
-        rospy.loginfo(f"robot_palm_euler_ZYX = {robot_palm_euler_ZYX}")
+        # rospy.loginfo(f"robot_palm_euler_ZYX = {robot_palm_euler_ZYX}")
 
         # Update the object pose
         # Object pose is in camera frame = C frame
         # We want it in world frame = robot frame = R frame
         T_C_O = object_pose
         T_R_O = T_R_C @ T_C_O
+        rospy.loginfo(f"T_R_O = {T_R_O}")
         object_pos = T_R_O[:3, 3]
         object_quat_xyzw = R.from_matrix(T_R_O[:3, :3]).as_quat()
         p.resetBasePositionAndOrientation(self.object_id, object_pos, object_quat_xyzw)
