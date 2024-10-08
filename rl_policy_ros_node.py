@@ -10,6 +10,9 @@ import torch
 from geometry_msgs.msg import Pose
 from sensor_msgs.msg import JointState
 from std_msgs.msg import Float64MultiArray, MultiArrayDimension, MultiArrayLayout
+from wandb_utils import restore_model_file_from_wandb
+from torch_utils import quat_rotate, to_torch
+import copy
 
 from rl_player import RlPlayer
 from camera_extrinsics import T_R_C
@@ -26,6 +29,7 @@ def assert_equals(a, b) -> None:
 
 
 NUM_XYZ = 3
+NUM_QUAT = 4
 NUM_ARM_DOFS = 7
 NUM_DOFS_PER_FINGER = 4
 NUM_FINGERS = 4
@@ -45,6 +49,118 @@ ALLEGRO_FINGERTIP_LINK_NAMES = [
     "ring_biotac_tip",
     "thumb_biotac_tip",
 ]
+
+OBJECT_NUM_RIGID_BODIES = 1
+NUM_OBJECT_KEYPOINTS = 4
+
+OBJECT_KEYPOINTS_LEN = 0.12
+OBJECT_KEYPOINT_OFFSETS = [
+    [0.0, 0.0, 0.0],
+    [OBJECT_KEYPOINTS_LEN, 0.0, 0.0],
+    [0.0, OBJECT_KEYPOINTS_LEN, 0.0],
+    [0.0, 0.0, OBJECT_KEYPOINTS_LEN],
+]
+
+OBJECT_KEYPOINT_OFFSETS_ROT_INVARIANT = [
+    [0.0, 0.0, 0.0],
+    [0.0, 0.0, 0.0],
+    [0.0, 0.0, 0.0],
+    [0.0, 0.0, 0.0],
+]
+assert (
+    len(OBJECT_KEYPOINT_OFFSETS)
+    == len(OBJECT_KEYPOINT_OFFSETS_ROT_INVARIANT)
+    == NUM_OBJECT_KEYPOINTS
+)
+
+
+
+def compute_keypoint_positions(
+    pos: torch.Tensor,
+    quat_xyzw: torch.Tensor,
+    keypoint_offsets: torch.Tensor,
+) -> torch.Tensor:
+    N, _ = pos.shape
+    assert_equals(pos.shape, (N, NUM_XYZ))
+    assert_equals(quat_xyzw.shape, (N, NUM_QUAT))
+    n_keypoints = keypoint_offsets.shape[1]
+    assert_equals(keypoint_offsets.shape, (N, n_keypoints, NUM_XYZ))
+
+    # Rotate keypoint offsets by quat_xyzw
+    keypoint_offsets_rotated = torch.zeros_like(
+        keypoint_offsets, device=keypoint_offsets.device
+    )
+    for i in range(n_keypoints):
+        keypoint_offsets_i = keypoint_offsets[:, i]
+        assert_equals(keypoint_offsets_i.shape, (N, NUM_XYZ))
+        keypoint_offsets_rotated_i = quat_rotate(q=quat_xyzw, v=keypoint_offsets_i)
+        assert_equals(keypoint_offsets_rotated_i.shape, (N, NUM_XYZ))
+
+        keypoint_offsets_rotated[:, i] = keypoint_offsets_rotated_i
+
+    # Add to pos
+    keypoint_positions = pos.unsqueeze(dim=1) + keypoint_offsets_rotated
+    assert_equals(keypoint_positions.shape, (N, n_keypoints, NUM_XYZ))
+    return keypoint_positions
+
+
+def rescale(
+    values: torch.Tensor,
+    old_mins: torch.Tensor,
+    old_maxs: torch.Tensor,
+    new_mins: torch.Tensor,
+    new_maxs: torch.Tensor,
+):
+    """
+    Rescale the input tensor from the old range to the new range.
+
+    Args:
+    values (torch.Tensor): Input tensor to be rescaled, shape (N, M)
+    old_mins (torch.Tensor): Minimum values of the old range, shape (M,)
+    old_maxs (torch.Tensor): Maximum values of the old range, shape (M,)
+    new_mins (torch.Tensor): Minimum values of the new range, shape (M,)
+    new_maxs (torch.Tensor): Maximum values of the new range, shape (M,)
+
+    Returns:
+    torch.Tensor: Rescaled tensor, shape (N, M)
+    """
+    assert_equals(len(values.shape), 2)
+    N, M = values.shape
+    assert_equals(old_mins.shape, (M,))
+    assert_equals(old_maxs.shape, (M,))
+    assert_equals(new_mins.shape, (M,))
+    assert_equals(new_maxs.shape, (M,))
+
+    # Ensure all inputs are tensors and on the same device
+    old_mins = torch.as_tensor(old_mins, dtype=values.dtype, device=values.device)
+    old_maxs = torch.as_tensor(old_maxs, dtype=values.dtype, device=values.device)
+    new_mins = torch.as_tensor(new_mins, dtype=values.dtype, device=values.device)
+    new_maxs = torch.as_tensor(new_maxs, dtype=values.dtype, device=values.device)
+
+    # Clip the input values to be within the old range
+    values_clipped = torch.clamp(values, min=old_mins[None], max=old_maxs[None])
+
+    # Perform the rescaling
+    rescaled = (values_clipped - old_mins[None]) / (old_maxs[None] - old_mins[None]) * (
+        new_maxs[None] - new_mins[None]
+    ) + new_mins[None]
+
+    return rescaled
+
+
+
+def pose_msg_to_T(msg: Pose) -> np.ndarray:
+    T = np.eye(4)
+    T[:3, 3] = np.array([msg.position.x, msg.position.y, msg.position.z])
+    T[:3, :3] = R.from_quat(
+        [msg.orientation.x, msg.orientation.y, msg.orientation.z, msg.orientation.w]
+    ).as_matrix()
+    return T
+
+def T_to_pos_quat_xyzw(T: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
+    pos = T[:3, 3]
+    quat_xyzw = R.from_matrix(T[:3, :3]).as_quat()
+    return pos, quat_xyzw
 
 
 class RLPolicyNode:
@@ -67,6 +183,9 @@ class RLPolicyNode:
         self.allegro_joint_state_msg = None
         self.fabric_state_msg = None
 
+        self.prev_object_pose_msg = None
+        self.prev_prev_object_pose_msg = None
+
         # Subscribers
         self.object_pose_sub = rospy.Subscriber(
             "/object_pose", Pose, self.object_pose_callback
@@ -84,15 +203,24 @@ class RLPolicyNode:
             "/fabric_state", JointState, self.fabric_state_callback
         )
 
-        # ROS rate (60Hz)
-        self.rate = rospy.Rate(60)  # 60 Hz
+        # ROS rate
+        self.rate_hz = 15
+        self.rate = rospy.Rate(self.rate_hz)
 
         # RL Player setup
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
-        self.num_observations = 130  # Update this number based on actual dimensions
+        self.num_observations = 144  # Update this number based on actual dimensions
         self.num_actions = 11  # First 6 for palm, last 5 for hand
-        self.config_path = "/move/u/tylerlum/github_repos/bidexhands_isaacgymenvs/isaacgymenvs/runs/RIGHT_1-freq_coll-on_damp-25_move3_2024-10-02_04-42-29-349841/config_resolved.yaml"  # Update this path
-        self.checkpoint_path = "/move/u/tylerlum/github_repos/bidexhands_isaacgymenvs/isaacgymenvs/runs/RIGHT_1-freq_coll-on_damp-25_move3_2024-10-02_04-42-29-349841/nn/last_RIGHT_1-freq_coll-on_damp-25_move3_ep_13000_rew_124.79679.pth"  # Update this path
+        # self.config_path = "/move/u/tylerlum/github_repos/bidexhands_isaacgymenvs/isaacgymenvs/runs/RIGHT_1-freq_coll-on_damp-25_move3_2024-10-02_04-42-29-349841/config_resolved.yaml"  # Update this path
+        # self.checkpoint_path = "/move/u/tylerlum/github_repos/bidexhands_isaacgymenvs/isaacgymenvs/runs/RIGHT_1-freq_coll-on_damp-25_move3_2024-10-02_04-42-29-349841/nn/last_RIGHT_1-freq_coll-on_damp-25_move3_ep_13000_rew_124.79679.pth"  # Update this path
+        self.config_path = restore_model_file_from_wandb(
+            # "https://wandb.ai/tylerlum/cross_embodiment/groups/2024-10-03_cup_fabric/files/runs/TOP_1-freq_move3_2024-10-03_17-57-49-083521/config_resolved.yaml?runName=TOP_1-freq_move3_2024-10-03_17-57-49-083521"
+            "https://wandb.ai/tylerlum/cross_embodiment/groups/2024-10-05_cup_fabric_reset-early_multigpu/files/runs/TOP_4-freq_coll-on_juno1_2_2024-10-07_23-27-58-967674/config_resolved.yaml?runName=TOP_4-freq_coll-on_juno1_2_2024-10-07_23-27-58-967674"
+        )
+        self.checkpoint_path = restore_model_file_from_wandb(
+            # "https://wandb.ai/tylerlum/cross_embodiment/groups/2024-10-03_cup_fabric/files/runs/TOP_1-freq_move3_2024-10-03_17-57-49-083521/nn/TOP_1-freq_move3.pth?runName=TOP_1-freq_move3_2024-10-03_17-57-49-083521"
+            "https://wandb.ai/tylerlum/cross_embodiment/groups/2024-10-05_cup_fabric_reset-early_multigpu/files/runs/TOP_4-freq_coll-on_juno1_2_2024-10-07_23-27-58-967674/nn/TOP_4-freq_coll-on_juno1_2.pth?runName=TOP_4-freq_coll-on_juno1_2_2024-10-07_23-27-58-967674"
+        )
 
         # Create the RL player
         self.player = RlPlayer(
@@ -105,10 +233,10 @@ class RLPolicyNode:
 
         # Define limits for palm and hand targets
         self.palm_mins = torch.tensor(
-            [1.0, -0.7, 0, -3.1416, -3.1416, -3.1416], device=self.device
+            [0.0, -0.7, 0, -3.1416, -3.1416, -3.1416], device=self.device
         )
         self.palm_maxs = torch.tensor(
-            [0.0, 0.7, 1.0, 3.1416, 3.1416, 3.1416], device=self.device
+            [1.0, 0.7, 1.0, 3.1416, 3.1416, 3.1416], device=self.device
         )
         self.hand_mins = torch.tensor(
             [0.2475, -0.3286, -0.7238, -0.0192, -0.5532], device=self.device
@@ -118,6 +246,7 @@ class RLPolicyNode:
         )
 
         self._setup_taskmap()
+        self.t = 0
 
     def object_pose_callback(self, msg: Pose):
         self.object_pose_msg = msg
@@ -148,65 +277,76 @@ class RLPolicyNode:
             )
             return None
 
+        iiwa_joint_state_msg = copy.copy(self.iiwa_joint_state_msg)
+        allegro_joint_state_msg = copy.copy(self.allegro_joint_state_msg)
+        object_pose_msg = copy.copy(self.object_pose_msg)
+        goal_object_pose_msg = copy.copy(self.goal_object_pose_msg)
+        fabric_state_msg = copy.copy(self.fabric_state_msg)
+
         # Concatenate the data from joint states and object pose
-        iiwa_position = np.array(self.iiwa_joint_state_msg.position)
-        iiwa_velocity = np.array(self.iiwa_joint_state_msg.velocity)
+        iiwa_position = np.array(iiwa_joint_state_msg.position)
+        iiwa_velocity = np.array(iiwa_joint_state_msg.velocity)
 
-        allegro_position = np.array(self.allegro_joint_state_msg.position)
-        allegro_velocity = np.array(self.allegro_joint_state_msg.velocity)
+        allegro_position = np.array(allegro_joint_state_msg.position)
+        allegro_velocity = np.array(allegro_joint_state_msg.velocity)
 
-        object_position_C = np.array(
-            [
-                self.object_pose_msg.position.x,
-                self.object_pose_msg.position.y,
-                self.object_pose_msg.position.z,
-            ]
-        )
-        object_quat_xyzw_C = np.array(
-            [
-                self.object_pose_msg.orientation.x,
-                self.object_pose_msg.orientation.y,
-                self.object_pose_msg.orientation.z,
-                self.object_pose_msg.orientation.w,
-            ]
-        )
-        T_C_O = np.eye(4)
-        T_C_O[:3, 3] = object_position_C
-        T_C_O[:3, :3] = R.from_quat(object_quat_xyzw_C).as_matrix()
+        T_C_O = pose_msg_to_T(object_pose_msg)
+        T_C_G = pose_msg_to_T(goal_object_pose_msg)
 
-        goal_object_pos_C = np.array(
-            [
-                self.goal_object_pose_msg.position.x,
-                self.goal_object_pose_msg.position.y,
-                self.goal_object_pose_msg.position.z,
-            ]
-        )
-        goal_object_quat_xyzw_C = np.array(
-            [
-                self.goal_object_pose_msg.orientation.x,
-                self.goal_object_pose_msg.orientation.y,
-                self.goal_object_pose_msg.orientation.z,
-                self.goal_object_pose_msg.orientation.w,
-            ]
-        )
-        T_C_G = np.eye(4)
-        T_C_G[:3, 3] = goal_object_pos_C
-        T_C_G[:3, :3] = R.from_quat(goal_object_quat_xyzw_C).as_matrix()
+        if self.prev_object_pose_msg is not None:
+            T_C_O_prev = pose_msg_to_T(self.prev_object_pose_msg)
+        else:
+            T_C_O_prev = T_C_O
+
+        if self.prev_prev_object_pose_msg is not None:
+            T_C_O_prev_prev = pose_msg_to_T(self.prev_prev_object_pose_msg)
+        else:
+            T_C_O_prev_prev = T_C_O_prev
+
+        self.prev_prev_object_pose_msg = self.prev_object_pose_msg
+        self.prev_object_pose_msg = object_pose_msg
 
         T_R_O = T_R_C @ T_C_O
-        object_position_R = T_R_O[:3, 3]
-        object_quat_xyzw_R = R.from_matrix(T_R_O[:3, :3]).as_quat()
+        object_position_R, object_quat_xyzw_R = T_to_pos_quat_xyzw(T_R_O)
 
         T_R_G = T_R_C @ T_C_G
-        goal_object_pos_R = T_R_G[:3, 3]
-        goal_object_quat_xyzw_R = R.from_matrix(T_R_G[:3, :3]).as_quat()
+        goal_object_pos_R, goal_object_quat_xyzw_R = T_to_pos_quat_xyzw(T_R_G)
+
+        T_R_O_prev = T_R_C @ T_C_O_prev
+        object_position_R_prev, object_quat_xyzw_R_prev = T_to_pos_quat_xyzw(T_R_O_prev)
+
+        T_R_O_prev_prev = T_R_C @ T_C_O_prev_prev
+        object_position_R_prev_prev, object_quat_xyzw_R_prev_prev = T_to_pos_quat_xyzw(
+            T_R_O_prev_prev
+        )
+
+        keypoint_offsets = to_torch(
+            OBJECT_KEYPOINT_OFFSETS,
+            device=self.device,
+            dtype=torch.float,
+        )
+        assert_equals(keypoint_offsets.shape, (NUM_OBJECT_KEYPOINTS, NUM_XYZ))
+
+        object_keypoint_positions = compute_keypoint_positions(
+            pos=torch.tensor(object_position_R, device=self.device).unsqueeze(0).float(),
+            quat_xyzw=torch.tensor(object_quat_xyzw_R, device=self.device).unsqueeze(0).float(),
+            keypoint_offsets=keypoint_offsets.unsqueeze(0).float(),
+        ).squeeze(0).cpu().numpy()
+        goal_object_keypoint_positions = compute_keypoint_positions(
+            pos=torch.tensor(goal_object_pos_R, device=self.device).unsqueeze(0).float(),
+            quat_xyzw=torch.tensor(goal_object_quat_xyzw_R, device=self.device).unsqueeze(0).float(),
+            keypoint_offsets=keypoint_offsets.unsqueeze(0).float(),
+        ).squeeze(0).cpu().numpy()
+
+        object_vel = np.zeros(3)
+        object_angvel = np.zeros(3)
 
         q = np.concatenate([iiwa_position, allegro_position])
         qd = np.concatenate([iiwa_velocity, allegro_velocity])
 
-        fabric_q = np.array(self.fabric_state_msg.position)
-        fabric_qd = np.array(self.fabric_state_msg.velocity)
-        fabric_qdd = np.array(self.fabric_state_msg.effort)
+        fabric_q = np.array(fabric_state_msg.position)
+        fabric_qd = np.array(fabric_state_msg.velocity)
+        fabric_qdd = np.array(fabric_state_msg.effort)
 
         taskmap_positions, _, _ = self.taskmap_helper(
             q=torch.from_numpy(q).float().unsqueeze(0).to(self.device),
@@ -239,11 +379,35 @@ class RLPolicyNode:
         obs_dict["object_quat_xyzw"] = object_quat_xyzw_R
         obs_dict["goal_pos"] = goal_object_pos_R
         obs_dict["goal_quat_xyzw"] = goal_object_quat_xyzw_R
+
+        obs_dict["prev_object_pos"] = object_position_R_prev
+        obs_dict["prev_object_quat_xyzw"] = object_quat_xyzw_R_prev
+        obs_dict["prev_prev_object_pos"] = object_position_R_prev_prev
+        obs_dict["prev_prev_object_quat_xyzw"] = object_quat_xyzw_R_prev_prev
+        # obs_dict["object_keypoint_positions"] = (
+        #     object_keypoint_positions.reshape(
+        #         NUM_OBJECT_KEYPOINTS * NUM_XYZ
+        #     )
+        # )
+        # obs_dict["goal_object_keypoint_positions"] = (
+        #     goal_object_keypoint_positions.reshape(
+        #         NUM_OBJECT_KEYPOINTS * NUM_XYZ
+        #     )
+        # )
+        # obs_dict["object_vel"] = object_vel
+        # obs_dict["object_angvel"] = object_angvel
+        # obs_dict["t"] = np.array([self.t]).reshape(1)
+        # self.t += 1
+
         obs_dict["fabric_q"] = fabric_q
         obs_dict["fabric_qd"] = fabric_qd
 
         for k, v in obs_dict.items():
             assert len(v.shape) == 1, f"Shape of {k} is {v.shape}, expected 1D tensor"
+
+        for k, v in obs_dict.items():
+            print(f"{k}: {v}")
+        print()
 
         # Concatenate all observations into a 1D tensor
         observation = np.concatenate(
@@ -293,9 +457,24 @@ class RLPolicyNode:
         )
 
     def rescale_action(self, action: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
+        N = action.shape[0]
+        assert_equals(action.shape, (N, self.num_actions))
+
         # Rescale the normalized actions from [-1, 1] to the actual target ranges
-        palm_target = (self.palm_maxs - self.palm_mins) * action[:, :6] + self.palm_mins
-        hand_target = (self.hand_maxs - self.hand_mins) * action[:, 6:] + self.hand_mins
+        palm_target = rescale(
+            values=action[:, :6],
+            old_mins=torch.ones_like(self.palm_mins) * -1,
+            old_maxs=torch.ones_like(self.palm_maxs) * 1,
+            new_mins=self.palm_mins,
+            new_maxs=self.palm_maxs,
+        )
+        hand_target = rescale(
+            values=action[:, 6:],
+            old_mins=torch.ones_like(self.hand_mins) * -1,
+            old_maxs=torch.ones_like(self.hand_maxs) * 1,
+            new_mins=self.hand_mins,
+            new_maxs=self.hand_maxs,
+        )
         return palm_target, hand_target
 
     def publish_targets(self, palm_target: torch.Tensor, hand_target: torch.Tensor):
@@ -325,6 +504,8 @@ class RLPolicyNode:
             obs = self.create_observation()
 
             if obs is not None:
+                assert_equals(obs.shape, (1, self.num_observations))
+
                 # Get the normalized action from the RL player
                 normalized_action = self.player.get_normalized_action(obs=obs)
                 # normalized_action = torch.zeros(1, self.num_actions, device=self.device)
@@ -332,11 +513,21 @@ class RLPolicyNode:
 
                 # Rescale the action to get palm and hand targets
                 palm_target, hand_target = self.rescale_action(normalized_action)
+                assert_equals(palm_target.shape, (1, 6))
+                assert_equals(hand_target.shape, (1, 5))
+                palm_target = palm_target.squeeze(0)
+                hand_target = hand_target.squeeze(0)
+
+                # DEBUG
+                print(f"normalized_action: {normalized_action}")
+                print(f"palm_target: {palm_target}")
+                print(f"hand_target: {hand_target}")
+                print()
 
                 # Publish the targets
                 self.publish_targets(palm_target, hand_target)
 
-            # Sleep to maintain 60Hz loop rate
+            # Sleep to maintain 15 loop rate
             before_sleep_time = rospy.Time.now()
             self.rate.sleep()
             after_sleep_time = rospy.Time.now()
