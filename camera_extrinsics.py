@@ -1,6 +1,5 @@
 import numpy as np
 
-
 # C is camera frame with Z forward and Y down
 # From Claire's extrinsics
 T_R_C = np.eye(4)

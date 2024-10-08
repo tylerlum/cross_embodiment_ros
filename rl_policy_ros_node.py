@@ -1,91 +1,46 @@
 #!/usr/bin/env python
 
-from typing import Optional, Tuple
+import copy
 from pathlib import Path
+from typing import Optional, Tuple
 
 import numpy as np
-from scipy.spatial.transform import Rotation as R
 import rospy
 import torch
 from geometry_msgs.msg import Pose
-from sensor_msgs.msg import JointState
-from std_msgs.msg import Float64MultiArray, MultiArrayDimension, MultiArrayLayout
-from isaacgymenvs.utils.wandb_utils import restore_file_from_wandb
-from isaacgymenvs.utils.torch_jit_utils import quat_rotate, to_torch
-import copy
-from isaacgymenvs.tasks.cross_embodiment.utils import (
-    AverageMeter,
-    assert_equals,
-    clamp_magnitude,
-    compute_keypoint_positions,
-    random_quaternion_rotation_xyzw,
-    wandb_started,
-    rescale,
-)
-
-from rl_player import RlPlayer
 from isaacgymenvs.tasks.cross_embodiment.camera_extrinsics import T_R_C
-
 from isaacgymenvs.tasks.cross_embodiment.constants import (
-    BLUE,
-    CYAN,
-    DEBUG_NUM_LATS,
-    DEBUG_NUM_LONS,
-    DEBUG_SPHERE_RADIUS,
-    END_ANG_VEL_IDX,
-    END_POS_IDX,
-    END_QUAT_IDX,
-    END_VEL_IDX,
-    GREEN,
-    MAGENTA,
-    NUM_RGBA,
-    NUM_STATES,
     NUM_XYZ,
-    NUM_QUAT,
-    RED,
-    START_ANG_VEL_IDX,
-    START_POS_IDX,
-    START_QUAT_IDX,
-    START_VEL_IDX,
-    WHITE,
 )
-
 from isaacgymenvs.tasks.cross_embodiment.kuka_allegro_constants import (
-    PALM_LINK_NAMES,
+    ALLEGRO_FINGERTIP_LINK_NAMES,
+    KUKA_ALLEGRO_ASSET_ROOT,
+    KUKA_ALLEGRO_FILENAME,
+    NUM_FINGERS,
     PALM_LINK_NAME,
+    PALM_LINK_NAMES,
     PALM_X_LINK_NAME,
     PALM_Y_LINK_NAME,
     PALM_Z_LINK_NAME,
-    DEMO_KUKA_ALLEGRO_DOF_POS,
-    ALLEGRO_ARMATURE,
-    ALLEGRO_DAMPING,
-    ALLEGRO_EFFORT,
-    ALLEGRO_FINGERTIP_LINK_NAMES,
-    ALLEGRO_STIFFNESS,
-    DEFAULT_ALLEGRO_DOF_POS,
-    DEFAULT_KUKA_DOF_POS,
-    DOF_FRICTION,
-    INDEX_FINGER_IDX,
-    KUKA_ARMATURE,
-    KUKA_DAMPING,
-    KUKA_EFFORT,
-    KUKA_STIFFNESS,
-    LEFT_KUKA_DOF_POS,
-    NUM_FINGERS,
-    RIGHT_KUKA_DOF_POS,
-    TOP_KUKA_DOF_POS,
-    KUKA_ALLEGRO_ASSET_ROOT,
-    KUKA_ALLEGRO_FILENAME,
 )
-from isaacgymenvs.tasks.cross_embodiment.kuka_allegro_constants import NUM_ARM_DOFS
-from isaacgymenvs.tasks.cross_embodiment.kuka_allegro_constants import NUM_HAND_ARM_DOFS
-
+from isaacgymenvs.tasks.cross_embodiment.kuka_allegro_constants import (
+    NUM_HAND_ARM_DOFS as KUKA_ALLEGRO_NUM_DOFS,
+)
 from isaacgymenvs.tasks.cross_embodiment.object_constants import (
     NUM_OBJECT_KEYPOINTS,
     OBJECT_KEYPOINT_OFFSETS,
-    OBJECT_KEYPOINT_OFFSETS_ROT_INVARIANT,
-    OBJECT_NUM_RIGID_BODIES,
 )
+from isaacgymenvs.tasks.cross_embodiment.utils import (
+    assert_equals,
+    rescale,
+)
+from isaacgymenvs.utils.torch_jit_utils import to_torch
+from isaacgymenvs.utils.wandb_utils import restore_file_from_wandb
+from scipy.spatial.transform import Rotation as R
+from sensor_msgs.msg import JointState
+from std_msgs.msg import Float64MultiArray, MultiArrayDimension, MultiArrayLayout
+
+from rl_player import RlPlayer
 
 
 def var_to_is_none_str(var) -> str:
@@ -288,44 +243,11 @@ class RLPolicyNode:
         )
         assert_equals(keypoint_offsets.shape, (NUM_OBJECT_KEYPOINTS, NUM_XYZ))
 
-        object_keypoint_positions = (
-            compute_keypoint_positions(
-                pos=torch.tensor(object_position_R, device=self.device)
-                .unsqueeze(0)
-                .float(),
-                quat_xyzw=torch.tensor(object_quat_xyzw_R, device=self.device)
-                .unsqueeze(0)
-                .float(),
-                keypoint_offsets=keypoint_offsets.unsqueeze(0).float(),
-            )
-            .squeeze(0)
-            .cpu()
-            .numpy()
-        )
-        goal_object_keypoint_positions = (
-            compute_keypoint_positions(
-                pos=torch.tensor(goal_object_pos_R, device=self.device)
-                .unsqueeze(0)
-                .float(),
-                quat_xyzw=torch.tensor(goal_object_quat_xyzw_R, device=self.device)
-                .unsqueeze(0)
-                .float(),
-                keypoint_offsets=keypoint_offsets.unsqueeze(0).float(),
-            )
-            .squeeze(0)
-            .cpu()
-            .numpy()
-        )
-
-        object_vel = np.zeros(3)
-        object_angvel = np.zeros(3)
-
         q = np.concatenate([iiwa_position, allegro_position])
         qd = np.concatenate([iiwa_velocity, allegro_velocity])
 
         fabric_q = np.array(fabric_state_msg.position)
         fabric_qd = np.array(fabric_state_msg.velocity)
-        fabric_qdd = np.array(fabric_state_msg.effort)
 
         taskmap_positions, _, _ = self.taskmap_helper(
             q=torch.from_numpy(q).float().unsqueeze(0).to(self.device),
@@ -363,6 +285,37 @@ class RLPolicyNode:
         obs_dict["prev_object_quat_xyzw"] = object_quat_xyzw_R_prev
         obs_dict["prev_prev_object_pos"] = object_position_R_prev_prev
         obs_dict["prev_prev_object_quat_xyzw"] = object_quat_xyzw_R_prev_prev
+
+        # object_keypoint_positions = (
+        #     compute_keypoint_positions(
+        #         pos=torch.tensor(object_position_R, device=self.device)
+        #         .unsqueeze(0)
+        #         .float(),
+        #         quat_xyzw=torch.tensor(object_quat_xyzw_R, device=self.device)
+        #         .unsqueeze(0)
+        #         .float(),
+        #         keypoint_offsets=keypoint_offsets.unsqueeze(0).float(),
+        #     )
+        #     .squeeze(0)
+        #     .cpu()
+        #     .numpy()
+        # )
+        # goal_object_keypoint_positions = (
+        #     compute_keypoint_positions(
+        #         pos=torch.tensor(goal_object_pos_R, device=self.device)
+        #         .unsqueeze(0)
+        #         .float(),
+        #         quat_xyzw=torch.tensor(goal_object_quat_xyzw_R, device=self.device)
+        #         .unsqueeze(0)
+        #         .float(),
+        #         keypoint_offsets=keypoint_offsets.unsqueeze(0).float(),
+        #     )
+        #     .squeeze(0)
+        #     .cpu()
+        #     .numpy()
+        # )
+        # object_vel = np.zeros(3)
+        # object_angvel = np.zeros(3)
         # obs_dict["object_keypoint_positions"] = (
         #     object_keypoint_positions.reshape(
         #         NUM_OBJECT_KEYPOINTS * NUM_XYZ
@@ -385,9 +338,9 @@ class RLPolicyNode:
             assert len(v.shape) == 1, f"Shape of {k} is {v.shape}, expected 1D tensor"
 
         # DEBUG
-        for k, v in obs_dict.items():
-            print(f"{k}: {v}")
-        print()
+        # for k, v in obs_dict.items():
+        #     print(f"{k}: {v}")
+        # print()
 
         # Concatenate all observations into a 1D tensor
         observation = np.concatenate(
@@ -500,10 +453,10 @@ class RLPolicyNode:
                 hand_target = hand_target.squeeze(0)
 
                 # DEBUG
-                print(f"normalized_action: {normalized_action}")
-                print(f"palm_target: {palm_target}")
-                print(f"hand_target: {hand_target}")
-                print()
+                # print(f"normalized_action: {normalized_action}")
+                # print(f"palm_target: {palm_target}")
+                # print(f"hand_target: {hand_target}")
+                # print()
 
                 # Publish the targets
                 self.publish_targets(palm_target, hand_target)

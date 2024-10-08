@@ -1,6 +1,5 @@
 #!/usr/bin/env python
 
-import trimesh
 import struct
 import time
 from pathlib import Path
@@ -10,13 +9,14 @@ import numpy as np
 import pybullet as p
 import rospy
 import sensor_msgs.point_cloud2 as pc2
+import trimesh
 from geometry_msgs.msg import Pose
+from isaacgymenvs.tasks.cross_embodiment.camera_extrinsics import T_R_C, T_R_C2
 from scipy.spatial.transform import Rotation as R
 from sensor_msgs.msg import JointState, PointCloud2
 from std_msgs.msg import Float64MultiArray
 
 from fabric_world import world_dict_robot_frame
-from isaacgymenvs.tasks.cross_embodiment.camera_extrinsics import T_R_C, T_R_C2
 
 NUM_ARM_JOINTS = 7
 NUM_HAND_JOINTS = 16
@@ -353,7 +353,10 @@ class VisualizationNode:
                 goal_object_mesh_path = simplified_mesh_path
             else:
                 import fast_simplification
-                points_out, faces_out = fast_simplification.simplify(mesh.vertices, mesh.faces, target_reduction=0.9)
+
+                points_out, faces_out = fast_simplification.simplify(
+                    mesh.vertices, mesh.faces, target_reduction=0.9
+                )
                 new_mesh = trimesh.Trimesh(vertices=points_out, faces=faces_out)
                 object_mesh_Path = Path(object_mesh_path)
                 simplified_mesh_path = str(
@@ -661,13 +664,16 @@ class VisualizationNode:
             lines=self.hand_cmd_lines,
         )
 
-        # Log to debug palm position and orientation in robot frame
-        # rospy.loginfo(f"robot_palm_com = {robot_palm_com}")
-        # rospy.loginfo(f"robot_palm_quat = {robot_palm_quat}")
         robot_palm_euler_ZYX = R.from_quat(robot_palm_quat).as_euler(
             "ZYX", degrees=False
         )
-        # rospy.loginfo(f"robot_palm_euler_ZYX = {robot_palm_euler_ZYX}")
+
+        # Log to debug palm position and orientation in robot frame
+        DEBUG_PALM = False
+        if DEBUG_PALM:
+            rospy.loginfo(f"robot_palm_com = {robot_palm_com}")
+            rospy.loginfo(f"robot_palm_quat = {robot_palm_quat}")
+            rospy.loginfo(f"robot_palm_euler_ZYX = {robot_palm_euler_ZYX}")
 
         # Update the object pose
         # Object pose is in camera frame = C frame

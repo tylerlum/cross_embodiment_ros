@@ -1,16 +1,17 @@
 #!/usr/bin/env python
 
-import rospy
-from typing import Literal
-import numpy as np
-from geometry_msgs.msg import Pose
-from scipy.spatial.transform import Rotation as R
 from pathlib import Path
+from typing import Literal
+
+import numpy as np
+import rospy
 import torch
+from geometry_msgs.msg import Pose
+from isaacgymenvs.tasks.cross_embodiment.camera_extrinsics import T_R_C
 from isaacgymenvs.tasks.cross_embodiment.vec_olivia_reference import (
     VecOliviaReferenceMotion,
 )
-from isaacgymenvs.tasks.cross_embodiment.camera_extrinsics import T_R_C
+from scipy.spatial.transform import Rotation as R
 
 
 class GoalObjectPosePublisher:
@@ -55,7 +56,9 @@ class GoalObjectPosePublisher:
 
         elif MODE == "position":
             # goal_object_pos = np.array([0.4637, -0.2200, 0.5199])
-            goal_object_pos = np.array([0.5735, -0.1633,  0.2038]) + np.array([0.0, 0.0, 0.3])
+            goal_object_pos = np.array([0.5735, -0.1633, 0.2038]) + np.array(
+                [0.0, 0.0, 0.3]
+            )
             goal_object_quat_xyzw = np.array([0.0, 0.0, 0.0, 1.0])
             T_R_O = np.eye(4)
             T_R_O[:3, :3] = R.from_quat(goal_object_quat_xyzw).as_matrix()
@@ -99,7 +102,7 @@ class GoalObjectPosePublisher:
     def _get_goal_object_pose_olivia_helper(self, reference_motion, device, num_envs):
         from isaacgymenvs.utils.torch_jit_utils import (
             matrix_to_quat_xyzw,
-            quat_xyzw_to_matrix
+            quat_xyzw_to_matrix,
         )
 
         T_C_Os = (
