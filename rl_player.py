@@ -111,10 +111,7 @@ class RlPlayer:
             )
 
         normalized_action = normalized_action.reshape(-1, self.num_actions)
-        assert normalized_action.shape in [
-            (batch_size, self.num_actions),
-            (2 * batch_size, self.num_actions),
-        ], f"normalized_action.shape={normalized_action.shape}"
+        assert_equals(normalized_action.shape, (batch_size, self.num_actions))
         return normalized_action
 
 
