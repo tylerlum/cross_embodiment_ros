@@ -54,7 +54,8 @@ class GoalObjectPosePublisher:
             self.N = len(self.T_C_O_list)
 
         elif MODE == "position":
-            goal_object_pos = np.array([0.4637, -0.2200, 0.5199])
+            # goal_object_pos = np.array([0.4637, -0.2200, 0.5199])
+            goal_object_pos = np.array([0.5735, -0.1633,  0.2038]) + np.array([0.0, 0.0, 0.3])
             goal_object_quat_xyzw = np.array([0.0, 0.0, 0.0, 1.0])
             T_R_O = np.eye(4)
             T_R_O[:3, :3] = R.from_quat(goal_object_quat_xyzw).as_matrix()
