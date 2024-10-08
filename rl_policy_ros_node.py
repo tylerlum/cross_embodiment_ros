@@ -74,7 +74,6 @@ assert (
 )
 
 
-
 def compute_keypoint_positions(
     pos: torch.Tensor,
     quat_xyzw: torch.Tensor,
@@ -148,7 +147,6 @@ def rescale(
     return rescaled
 
 
-
 def pose_msg_to_T(msg: Pose) -> np.ndarray:
     T = np.eye(4)
     T[:3, 3] = np.array([msg.position.x, msg.position.y, msg.position.z])
@@ -156,6 +154,7 @@ def pose_msg_to_T(msg: Pose) -> np.ndarray:
         [msg.orientation.x, msg.orientation.y, msg.orientation.z, msg.orientation.w]
     ).as_matrix()
     return T
+
 
 def T_to_pos_quat_xyzw(T: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
     pos = T[:3, 3]
@@ -182,6 +181,7 @@ class RLPolicyNode:
         self.iiwa_joint_state_msg = None
         self.allegro_joint_state_msg = None
         self.fabric_state_msg = None
+        self.received_fabric_state_time = None
 
         self.prev_object_pose_msg = None
         self.prev_prev_object_pose_msg = None
@@ -214,12 +214,12 @@ class RLPolicyNode:
         # self.config_path = "/move/u/tylerlum/github_repos/bidexhands_isaacgymenvs/isaacgymenvs/runs/RIGHT_1-freq_coll-on_damp-25_move3_2024-10-02_04-42-29-349841/config_resolved.yaml"  # Update this path
         # self.checkpoint_path = "/move/u/tylerlum/github_repos/bidexhands_isaacgymenvs/isaacgymenvs/runs/RIGHT_1-freq_coll-on_damp-25_move3_2024-10-02_04-42-29-349841/nn/last_RIGHT_1-freq_coll-on_damp-25_move3_ep_13000_rew_124.79679.pth"  # Update this path
         self.config_path = restore_model_file_from_wandb(
-            # "https://wandb.ai/tylerlum/cross_embodiment/groups/2024-10-03_cup_fabric/files/runs/TOP_1-freq_move3_2024-10-03_17-57-49-083521/config_resolved.yaml?runName=TOP_1-freq_move3_2024-10-03_17-57-49-083521"
             "https://wandb.ai/tylerlum/cross_embodiment/groups/2024-10-05_cup_fabric_reset-early_multigpu/files/runs/TOP_4-freq_coll-on_juno1_2_2024-10-07_23-27-58-967674/config_resolved.yaml?runName=TOP_4-freq_coll-on_juno1_2_2024-10-07_23-27-58-967674"
+            # "https://wandb.ai/tylerlum/cross_embodiment/groups/2024-10-05_cup_fabric_reset-early_multigpu/files/runs/LEFT_4-freq_juno2_2024-10-07_23-20-48-082226/config_resolved.yaml?runName=LEFT_4-freq_juno2_2024-10-07_23-20-48-082226"
         )
         self.checkpoint_path = restore_model_file_from_wandb(
-            # "https://wandb.ai/tylerlum/cross_embodiment/groups/2024-10-03_cup_fabric/files/runs/TOP_1-freq_move3_2024-10-03_17-57-49-083521/nn/TOP_1-freq_move3.pth?runName=TOP_1-freq_move3_2024-10-03_17-57-49-083521"
             "https://wandb.ai/tylerlum/cross_embodiment/groups/2024-10-05_cup_fabric_reset-early_multigpu/files/runs/TOP_4-freq_coll-on_juno1_2_2024-10-07_23-27-58-967674/nn/TOP_4-freq_coll-on_juno1_2.pth?runName=TOP_4-freq_coll-on_juno1_2_2024-10-07_23-27-58-967674"
+            # "https://wandb.ai/tylerlum/cross_embodiment/groups/2024-10-05_cup_fabric_reset-early_multigpu/files/runs/LEFT_4-freq_juno2_2024-10-07_23-20-48-082226/nn/LEFT_4-freq_juno2.pth?runName=LEFT_4-freq_juno2_2024-10-07_23-20-48-082226"
         )
 
         # Create the RL player
@@ -262,6 +262,7 @@ class RLPolicyNode:
 
     def fabric_state_callback(self, msg: JointState):
         self.fabric_state_msg = msg
+        self.received_fabric_state_time = rospy.Time.now()
 
     def create_observation(self) -> Optional[torch.Tensor]:
         # Ensure all messages are received before processing
@@ -276,6 +277,19 @@ class RLPolicyNode:
                 f"Waiting for all messages to be received... iiwa_joint_state_msg: {var_to_is_none_str(self.iiwa_joint_state_msg)}, allegro_joint_state_msg: {var_to_is_none_str(self.allegro_joint_state_msg)}, object_pose_msg: {var_to_is_none_str(self.object_pose_msg)}, goal_object_pose_msg: {var_to_is_none_str(self.goal_object_pose_msg)}, fabric_state_msg: {var_to_is_none_str(self.fabric_state_msg)}"
             )
             return None
+
+        # Stop if the fabric states are not received for a long time
+        assert self.received_fabric_state_time is not None
+        MAX_DT_FABRIC_STATE_SEC = 1.0
+        time_since_fabric_state = (
+            rospy.Time.now() - self.received_fabric_state_time
+        ).to_sec()
+        if time_since_fabric_state > MAX_DT_FABRIC_STATE_SEC:
+            log_msg = (
+                f"Did not receive fabric states for {time_since_fabric_state} seconds"
+            )
+            rospy.logerr(log_msg)
+            raise ValueError(log_msg)
 
         iiwa_joint_state_msg = copy.copy(self.iiwa_joint_state_msg)
         allegro_joint_state_msg = copy.copy(self.allegro_joint_state_msg)
@@ -327,16 +341,34 @@ class RLPolicyNode:
         )
         assert_equals(keypoint_offsets.shape, (NUM_OBJECT_KEYPOINTS, NUM_XYZ))
 
-        object_keypoint_positions = compute_keypoint_positions(
-            pos=torch.tensor(object_position_R, device=self.device).unsqueeze(0).float(),
-            quat_xyzw=torch.tensor(object_quat_xyzw_R, device=self.device).unsqueeze(0).float(),
-            keypoint_offsets=keypoint_offsets.unsqueeze(0).float(),
-        ).squeeze(0).cpu().numpy()
-        goal_object_keypoint_positions = compute_keypoint_positions(
-            pos=torch.tensor(goal_object_pos_R, device=self.device).unsqueeze(0).float(),
-            quat_xyzw=torch.tensor(goal_object_quat_xyzw_R, device=self.device).unsqueeze(0).float(),
-            keypoint_offsets=keypoint_offsets.unsqueeze(0).float(),
-        ).squeeze(0).cpu().numpy()
+        object_keypoint_positions = (
+            compute_keypoint_positions(
+                pos=torch.tensor(object_position_R, device=self.device)
+                .unsqueeze(0)
+                .float(),
+                quat_xyzw=torch.tensor(object_quat_xyzw_R, device=self.device)
+                .unsqueeze(0)
+                .float(),
+                keypoint_offsets=keypoint_offsets.unsqueeze(0).float(),
+            )
+            .squeeze(0)
+            .cpu()
+            .numpy()
+        )
+        goal_object_keypoint_positions = (
+            compute_keypoint_positions(
+                pos=torch.tensor(goal_object_pos_R, device=self.device)
+                .unsqueeze(0)
+                .float(),
+                quat_xyzw=torch.tensor(goal_object_quat_xyzw_R, device=self.device)
+                .unsqueeze(0)
+                .float(),
+                keypoint_offsets=keypoint_offsets.unsqueeze(0).float(),
+            )
+            .squeeze(0)
+            .cpu()
+            .numpy()
+        )
 
         object_vel = np.zeros(3)
         object_angvel = np.zeros(3)
@@ -405,6 +437,7 @@ class RLPolicyNode:
         for k, v in obs_dict.items():
             assert len(v.shape) == 1, f"Shape of {k} is {v.shape}, expected 1D tensor"
 
+        # DEBUG
         for k, v in obs_dict.items():
             print(f"{k}: {v}")
         print()
@@ -420,6 +453,7 @@ class RLPolicyNode:
 
     def _setup_taskmap(self) -> None:
         import warp as wp
+
         wp.init()
         from fabrics_sim.taskmaps.robot_frame_origins_taskmap import (
             RobotFrameOriginsTaskMap,
