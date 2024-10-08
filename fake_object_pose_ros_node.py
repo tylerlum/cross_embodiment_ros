@@ -5,7 +5,7 @@ import rospy
 from geometry_msgs.msg import Pose
 from typing import Literal
 from scipy.spatial.transform import Rotation as R
-from camera_extrinsics import T_R_C
+from isaacgymenvs.tasks.cross_embodiment.camera_extrinsics import T_R_C
 
 
 class FakeObjectPose:

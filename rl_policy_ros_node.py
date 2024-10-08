@@ -10,141 +10,88 @@ import torch
 from geometry_msgs.msg import Pose
 from sensor_msgs.msg import JointState
 from std_msgs.msg import Float64MultiArray, MultiArrayDimension, MultiArrayLayout
-from wandb_utils import restore_model_file_from_wandb
-from torch_utils import quat_rotate, to_torch
+from isaacgymenvs.utils.wandb_utils import restore_file_from_wandb
+from isaacgymenvs.utils.torch_jit_utils import quat_rotate, to_torch
 import copy
+from isaacgymenvs.tasks.cross_embodiment.utils import (
+    AverageMeter,
+    assert_equals,
+    clamp_magnitude,
+    compute_keypoint_positions,
+    random_quaternion_rotation_xyzw,
+    wandb_started,
+    rescale,
+)
 
 from rl_player import RlPlayer
-from camera_extrinsics import T_R_C
+from isaacgymenvs.tasks.cross_embodiment.camera_extrinsics import T_R_C
+
+from isaacgymenvs.tasks.cross_embodiment.constants import (
+    BLUE,
+    CYAN,
+    DEBUG_NUM_LATS,
+    DEBUG_NUM_LONS,
+    DEBUG_SPHERE_RADIUS,
+    END_ANG_VEL_IDX,
+    END_POS_IDX,
+    END_QUAT_IDX,
+    END_VEL_IDX,
+    GREEN,
+    MAGENTA,
+    NUM_RGBA,
+    NUM_STATES,
+    NUM_XYZ,
+    NUM_QUAT,
+    RED,
+    START_ANG_VEL_IDX,
+    START_POS_IDX,
+    START_QUAT_IDX,
+    START_VEL_IDX,
+    WHITE,
+)
+
+from isaacgymenvs.tasks.cross_embodiment.kuka_allegro_constants import (
+    PALM_LINK_NAMES,
+    PALM_LINK_NAME,
+    PALM_X_LINK_NAME,
+    PALM_Y_LINK_NAME,
+    PALM_Z_LINK_NAME,
+    DEMO_KUKA_ALLEGRO_DOF_POS,
+    ALLEGRO_ARMATURE,
+    ALLEGRO_DAMPING,
+    ALLEGRO_EFFORT,
+    ALLEGRO_FINGERTIP_LINK_NAMES,
+    ALLEGRO_STIFFNESS,
+    DEFAULT_ALLEGRO_DOF_POS,
+    DEFAULT_KUKA_DOF_POS,
+    DOF_FRICTION,
+    INDEX_FINGER_IDX,
+    KUKA_ARMATURE,
+    KUKA_DAMPING,
+    KUKA_EFFORT,
+    KUKA_STIFFNESS,
+    LEFT_KUKA_DOF_POS,
+    NUM_FINGERS,
+    RIGHT_KUKA_DOF_POS,
+    TOP_KUKA_DOF_POS,
+    KUKA_ALLEGRO_ASSET_ROOT,
+    KUKA_ALLEGRO_FILENAME,
+)
+from isaacgymenvs.tasks.cross_embodiment.kuka_allegro_constants import NUM_ARM_DOFS
+from isaacgymenvs.tasks.cross_embodiment.kuka_allegro_constants import NUM_HAND_ARM_DOFS
+
+from isaacgymenvs.tasks.cross_embodiment.object_constants import (
+    NUM_OBJECT_KEYPOINTS,
+    OBJECT_KEYPOINT_OFFSETS,
+    OBJECT_KEYPOINT_OFFSETS_ROT_INVARIANT,
+    OBJECT_NUM_RIGID_BODIES,
+)
 
 
 def var_to_is_none_str(var) -> str:
     if var is None:
         return "None"
     return "Not None"
-
-
-def assert_equals(a, b) -> None:
-    assert a == b, f"{a} != {b}"
-
-
-NUM_XYZ = 3
-NUM_QUAT = 4
-NUM_ARM_DOFS = 7
-NUM_DOFS_PER_FINGER = 4
-NUM_FINGERS = 4
-NUM_HAND_DOFS = NUM_DOFS_PER_FINGER * NUM_FINGERS
-NUM_HAND_ARM_DOFS = NUM_ARM_DOFS + NUM_HAND_DOFS
-KUKA_ALLEGRO_NUM_DOFS = NUM_HAND_ARM_DOFS
-KUKA_ALLEGRO_ASSET_ROOT = "/juno/u/tylerlum/github_repos/fabrics-sim/src/fabrics_sim/models/robots/urdf/kuka_allegro"
-KUKA_ALLEGRO_FILENAME = "kuka_allegro.urdf"
-PALM_LINK_NAME = "palm_link"
-PALM_X_LINK_NAME = "palm_x"
-PALM_Y_LINK_NAME = "palm_y"
-PALM_Z_LINK_NAME = "palm_z"
-PALM_LINK_NAMES = [PALM_LINK_NAME, PALM_X_LINK_NAME, PALM_Y_LINK_NAME, PALM_Z_LINK_NAME]
-ALLEGRO_FINGERTIP_LINK_NAMES = [
-    "index_biotac_tip",
-    "middle_biotac_tip",
-    "ring_biotac_tip",
-    "thumb_biotac_tip",
-]
-
-OBJECT_NUM_RIGID_BODIES = 1
-NUM_OBJECT_KEYPOINTS = 4
-
-OBJECT_KEYPOINTS_LEN = 0.12
-OBJECT_KEYPOINT_OFFSETS = [
-    [0.0, 0.0, 0.0],
-    [OBJECT_KEYPOINTS_LEN, 0.0, 0.0],
-    [0.0, OBJECT_KEYPOINTS_LEN, 0.0],
-    [0.0, 0.0, OBJECT_KEYPOINTS_LEN],
-]
-
-OBJECT_KEYPOINT_OFFSETS_ROT_INVARIANT = [
-    [0.0, 0.0, 0.0],
-    [0.0, 0.0, 0.0],
-    [0.0, 0.0, 0.0],
-    [0.0, 0.0, 0.0],
-]
-assert (
-    len(OBJECT_KEYPOINT_OFFSETS)
-    == len(OBJECT_KEYPOINT_OFFSETS_ROT_INVARIANT)
-    == NUM_OBJECT_KEYPOINTS
-)
-
-
-def compute_keypoint_positions(
-    pos: torch.Tensor,
-    quat_xyzw: torch.Tensor,
-    keypoint_offsets: torch.Tensor,
-) -> torch.Tensor:
-    N, _ = pos.shape
-    assert_equals(pos.shape, (N, NUM_XYZ))
-    assert_equals(quat_xyzw.shape, (N, NUM_QUAT))
-    n_keypoints = keypoint_offsets.shape[1]
-    assert_equals(keypoint_offsets.shape, (N, n_keypoints, NUM_XYZ))
-
-    # Rotate keypoint offsets by quat_xyzw
-    keypoint_offsets_rotated = torch.zeros_like(
-        keypoint_offsets, device=keypoint_offsets.device
-    )
-    for i in range(n_keypoints):
-        keypoint_offsets_i = keypoint_offsets[:, i]
-        assert_equals(keypoint_offsets_i.shape, (N, NUM_XYZ))
-        keypoint_offsets_rotated_i = quat_rotate(q=quat_xyzw, v=keypoint_offsets_i)
-        assert_equals(keypoint_offsets_rotated_i.shape, (N, NUM_XYZ))
-
-        keypoint_offsets_rotated[:, i] = keypoint_offsets_rotated_i
-
-    # Add to pos
-    keypoint_positions = pos.unsqueeze(dim=1) + keypoint_offsets_rotated
-    assert_equals(keypoint_positions.shape, (N, n_keypoints, NUM_XYZ))
-    return keypoint_positions
-
-
-def rescale(
-    values: torch.Tensor,
-    old_mins: torch.Tensor,
-    old_maxs: torch.Tensor,
-    new_mins: torch.Tensor,
-    new_maxs: torch.Tensor,
-):
-    """
-    Rescale the input tensor from the old range to the new range.
-
-    Args:
-    values (torch.Tensor): Input tensor to be rescaled, shape (N, M)
-    old_mins (torch.Tensor): Minimum values of the old range, shape (M,)
-    old_maxs (torch.Tensor): Maximum values of the old range, shape (M,)
-    new_mins (torch.Tensor): Minimum values of the new range, shape (M,)
-    new_maxs (torch.Tensor): Maximum values of the new range, shape (M,)
-
-    Returns:
-    torch.Tensor: Rescaled tensor, shape (N, M)
-    """
-    assert_equals(len(values.shape), 2)
-    N, M = values.shape
-    assert_equals(old_mins.shape, (M,))
-    assert_equals(old_maxs.shape, (M,))
-    assert_equals(new_mins.shape, (M,))
-    assert_equals(new_maxs.shape, (M,))
-
-    # Ensure all inputs are tensors and on the same device
-    old_mins = torch.as_tensor(old_mins, dtype=values.dtype, device=values.device)
-    old_maxs = torch.as_tensor(old_maxs, dtype=values.dtype, device=values.device)
-    new_mins = torch.as_tensor(new_mins, dtype=values.dtype, device=values.device)
-    new_maxs = torch.as_tensor(new_maxs, dtype=values.dtype, device=values.device)
-
-    # Clip the input values to be within the old range
-    values_clipped = torch.clamp(values, min=old_mins[None], max=old_maxs[None])
-
-    # Perform the rescaling
-    rescaled = (values_clipped - old_mins[None]) / (old_maxs[None] - old_mins[None]) * (
-        new_maxs[None] - new_mins[None]
-    ) + new_mins[None]
-
-    return rescaled
 
 
 def pose_msg_to_T(msg: Pose) -> np.ndarray:
@@ -213,11 +160,11 @@ class RLPolicyNode:
         self.num_actions = 11  # First 6 for palm, last 5 for hand
         # self.config_path = "/move/u/tylerlum/github_repos/bidexhands_isaacgymenvs/isaacgymenvs/runs/RIGHT_1-freq_coll-on_damp-25_move3_2024-10-02_04-42-29-349841/config_resolved.yaml"  # Update this path
         # self.checkpoint_path = "/move/u/tylerlum/github_repos/bidexhands_isaacgymenvs/isaacgymenvs/runs/RIGHT_1-freq_coll-on_damp-25_move3_2024-10-02_04-42-29-349841/nn/last_RIGHT_1-freq_coll-on_damp-25_move3_ep_13000_rew_124.79679.pth"  # Update this path
-        self.config_path = restore_model_file_from_wandb(
+        self.config_path = restore_file_from_wandb(
             "https://wandb.ai/tylerlum/cross_embodiment/groups/2024-10-05_cup_fabric_reset-early_multigpu/files/runs/TOP_4-freq_coll-on_juno1_2_2024-10-07_23-27-58-967674/config_resolved.yaml?runName=TOP_4-freq_coll-on_juno1_2_2024-10-07_23-27-58-967674"
             # "https://wandb.ai/tylerlum/cross_embodiment/groups/2024-10-05_cup_fabric_reset-early_multigpu/files/runs/LEFT_4-freq_juno2_2024-10-07_23-20-48-082226/config_resolved.yaml?runName=LEFT_4-freq_juno2_2024-10-07_23-20-48-082226"
         )
-        self.checkpoint_path = restore_model_file_from_wandb(
+        self.checkpoint_path = restore_file_from_wandb(
             "https://wandb.ai/tylerlum/cross_embodiment/groups/2024-10-05_cup_fabric_reset-early_multigpu/files/runs/TOP_4-freq_coll-on_juno1_2_2024-10-07_23-27-58-967674/nn/TOP_4-freq_coll-on_juno1_2.pth?runName=TOP_4-freq_coll-on_juno1_2_2024-10-07_23-27-58-967674"
             # "https://wandb.ai/tylerlum/cross_embodiment/groups/2024-10-05_cup_fabric_reset-early_multigpu/files/runs/LEFT_4-freq_juno2_2024-10-07_23-20-48-082226/nn/LEFT_4-freq_juno2.pth?runName=LEFT_4-freq_juno2_2024-10-07_23-20-48-082226"
         )

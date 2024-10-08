@@ -16,7 +16,7 @@ from sensor_msgs.msg import JointState, PointCloud2
 from std_msgs.msg import Float64MultiArray
 
 from fabric_world import world_dict_robot_frame
-from camera_extrinsics import T_R_C, T_R_C2
+from isaacgymenvs.tasks.cross_embodiment.camera_extrinsics import T_R_C, T_R_C2
 
 NUM_ARM_JOINTS = 7
 NUM_HAND_JOINTS = 16

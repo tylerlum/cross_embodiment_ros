@@ -7,10 +7,10 @@ from geometry_msgs.msg import Pose
 from scipy.spatial.transform import Rotation as R
 from pathlib import Path
 import torch
-from vec_olivia_reference import (
+from isaacgymenvs.tasks.cross_embodiment.vec_olivia_reference import (
     VecOliviaReferenceMotion,
 )
-from camera_extrinsics import T_R_C
+from isaacgymenvs.tasks.cross_embodiment.camera_extrinsics import T_R_C
 
 
 class GoalObjectPosePublisher:
@@ -97,9 +97,9 @@ class GoalObjectPosePublisher:
         return T_C_O_list
 
     def _get_goal_object_pose_olivia_helper(self, reference_motion, device, num_envs):
-        from torch_jit_utils import (
+        from isaacgymenvs.utils.torch_jit_utils import (
             matrix_to_quat_xyzw,
-            quat_xyzw_to_matrix,
+            quat_xyzw_to_matrix
         )
 
         T_C_Os = (
