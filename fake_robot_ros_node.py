@@ -100,7 +100,7 @@ class FakeRobotNode:
     def update_joint_states(self):
         """Update the PyBullet simulation with the commanded joint positions."""
         if self.iiwa_joint_cmd is None or self.allegro_joint_cmd is None:
-            rospy.loginfo(
+            rospy.logwarn(
                 f"Waiting: iiwa_joint_cmd: {self.iiwa_joint_cmd}, allegro_joint_cmd: {self.allegro_joint_cmd}"
             )
             return
