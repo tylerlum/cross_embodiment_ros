@@ -11,16 +11,36 @@ NUM_HAND_JOINTS = 16
 
 DEFAULT_ARM_Q = np.array(
     [
-        0,
-        0,
-        0,
-        -1.57,
-        0,
-        1.57,
-        0,
+    -0.8689132,
+    0.4176688,
+    0.5549343,
+    -2.0467792,
+    -0.3155458,
+    0.7586144,
+    -0.12089629,
     ]
 )
-DEFAULT_HAND_Q = np.zeros(NUM_HAND_JOINTS)
+# DEFAULT_HAND_Q = np.zeros(NUM_HAND_JOINTS)
+DEFAULT_HAND_Q = np.array(
+    [
+        0.0,
+        0.3,
+        0.3,
+        0.3,
+        0.0,
+        0.3,
+        0.3,
+        0.3,
+        0.0,
+        0.3,
+        0.3,
+        0.3,
+        0.72383858,
+        0.60147215,
+        0.33795027,
+        0.60845138,
+    ]
+)
 
 
 class FakeRobotNode:
