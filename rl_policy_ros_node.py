@@ -34,7 +34,7 @@ from isaacgymenvs.utils.cross_embodiment.utils import (
     assert_equals,
     rescale,
 )
-from isaacgymenvs.utils.torch_jit_utils import to_torch
+from isaacgym.torch_utils import to_torch
 from isaacgymenvs.utils.wandb_utils import restore_file_from_wandb
 from scipy.spatial.transform import Rotation as R
 from sensor_msgs.msg import JointState
