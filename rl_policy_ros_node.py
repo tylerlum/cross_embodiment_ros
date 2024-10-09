@@ -8,11 +8,11 @@ import numpy as np
 import rospy
 import torch
 from geometry_msgs.msg import Pose
-from isaacgymenvs.tasks.cross_embodiment.camera_extrinsics import T_R_C
-from isaacgymenvs.tasks.cross_embodiment.constants import (
+from isaacgymenvs.utils.cross_embodiment.camera_extrinsics import T_R_C
+from isaacgymenvs.utils.cross_embodiment.constants import (
     NUM_XYZ,
 )
-from isaacgymenvs.tasks.cross_embodiment.kuka_allegro_constants import (
+from isaacgymenvs.utils.cross_embodiment.kuka_allegro_constants import (
     ALLEGRO_FINGERTIP_LINK_NAMES,
     KUKA_ALLEGRO_ASSET_ROOT,
     KUKA_ALLEGRO_FILENAME,
@@ -23,14 +23,14 @@ from isaacgymenvs.tasks.cross_embodiment.kuka_allegro_constants import (
     PALM_Y_LINK_NAME,
     PALM_Z_LINK_NAME,
 )
-from isaacgymenvs.tasks.cross_embodiment.kuka_allegro_constants import (
+from isaacgymenvs.utils.cross_embodiment.kuka_allegro_constants import (
     NUM_HAND_ARM_DOFS as KUKA_ALLEGRO_NUM_DOFS,
 )
-from isaacgymenvs.tasks.cross_embodiment.object_constants import (
+from isaacgymenvs.utils.cross_embodiment.object_constants import (
     NUM_OBJECT_KEYPOINTS,
     OBJECT_KEYPOINT_OFFSETS,
 )
-from isaacgymenvs.tasks.cross_embodiment.utils import (
+from isaacgymenvs.utils.cross_embodiment.utils import (
     assert_equals,
     rescale,
 )
@@ -115,11 +115,11 @@ class RLPolicyNode:
         self.num_actions = 11  # First 6 for palm, last 5 for hand
         # self.config_path = "/move/u/tylerlum/github_repos/bidexhands_isaacgymenvs/isaacgymenvs/runs/RIGHT_1-freq_coll-on_damp-25_move3_2024-10-02_04-42-29-349841/config_resolved.yaml"  # Update this path
         # self.checkpoint_path = "/move/u/tylerlum/github_repos/bidexhands_isaacgymenvs/isaacgymenvs/runs/RIGHT_1-freq_coll-on_damp-25_move3_2024-10-02_04-42-29-349841/nn/last_RIGHT_1-freq_coll-on_damp-25_move3_ep_13000_rew_124.79679.pth"  # Update this path
-        self.config_path = restore_file_from_wandb(
+        _, self.config_path = restore_file_from_wandb(
             "https://wandb.ai/tylerlum/cross_embodiment/groups/2024-10-05_cup_fabric_reset-early_multigpu/files/runs/TOP_4-freq_coll-on_juno1_2_2024-10-07_23-27-58-967674/config_resolved.yaml?runName=TOP_4-freq_coll-on_juno1_2_2024-10-07_23-27-58-967674"
             # "https://wandb.ai/tylerlum/cross_embodiment/groups/2024-10-05_cup_fabric_reset-early_multigpu/files/runs/LEFT_4-freq_juno2_2024-10-07_23-20-48-082226/config_resolved.yaml?runName=LEFT_4-freq_juno2_2024-10-07_23-20-48-082226"
         )
-        self.checkpoint_path = restore_file_from_wandb(
+        _, self.checkpoint_path = restore_file_from_wandb(
             "https://wandb.ai/tylerlum/cross_embodiment/groups/2024-10-05_cup_fabric_reset-early_multigpu/files/runs/TOP_4-freq_coll-on_juno1_2_2024-10-07_23-27-58-967674/nn/TOP_4-freq_coll-on_juno1_2.pth?runName=TOP_4-freq_coll-on_juno1_2_2024-10-07_23-27-58-967674"
             # "https://wandb.ai/tylerlum/cross_embodiment/groups/2024-10-05_cup_fabric_reset-early_multigpu/files/runs/LEFT_4-freq_juno2_2024-10-07_23-20-48-082226/nn/LEFT_4-freq_juno2.pth?runName=LEFT_4-freq_juno2_2024-10-07_23-20-48-082226"
         )

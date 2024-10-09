@@ -11,7 +11,7 @@ import rospy
 import sensor_msgs.point_cloud2 as pc2
 import trimesh
 from geometry_msgs.msg import Pose
-from isaacgymenvs.tasks.cross_embodiment.camera_extrinsics import T_R_C, T_R_C2
+from isaacgymenvs.utils.cross_embodiment.camera_extrinsics import T_R_C, T_R_C2
 from scipy.spatial.transform import Rotation as R
 from sensor_msgs.msg import JointState, PointCloud2
 from std_msgs.msg import Float64MultiArray

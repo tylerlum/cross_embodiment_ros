@@ -7,8 +7,8 @@ import numpy as np
 import rospy
 import torch
 from geometry_msgs.msg import Pose
-from isaacgymenvs.tasks.cross_embodiment.camera_extrinsics import T_R_C
-from isaacgymenvs.tasks.cross_embodiment.vec_olivia_reference import (
+from isaacgymenvs.utils.cross_embodiment.camera_extrinsics import T_R_C
+from isaacgymenvs.utils.cross_embodiment.vec_olivia_reference import (
     VecOliviaReferenceMotion,
 )
 from scipy.spatial.transform import Rotation as R
