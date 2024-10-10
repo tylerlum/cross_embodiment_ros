@@ -16,6 +16,33 @@ from fabric_world import world_dict_robot_frame
 
 NUM_ARM_JOINTS = 7
 NUM_HAND_JOINTS = 16
+IIWA_NAMES = [
+    "iiwa_joint_1",
+    "iiwa_joint_2",
+    "iiwa_joint_3",
+    "iiwa_joint_4",
+    "iiwa_joint_5",
+    "iiwa_joint_6",
+    "iiwa_joint_7",
+]
+ALLEGRO_NAMES = [
+    "allegro_joint_0",
+    "allegro_joint_1",
+    "allegro_joint_2",
+    "allegro_joint_3",
+    "allegro_joint_4",
+    "allegro_joint_5",
+    "allegro_joint_6",
+    "allegro_joint_7",
+    "allegro_joint_8",
+    "allegro_joint_9",
+    "allegro_joint_10",
+    "allegro_joint_11",
+    "allegro_joint_12",
+    "allegro_joint_13",
+    "allegro_joint_14",
+    "allegro_joint_15",
+]
 
 
 class IiwaAllegroFabricPublisher:
@@ -234,70 +261,37 @@ class IiwaAllegroFabricPublisher:
                 return
 
             # Still publish the joint states even if the targets are not received
-            iiwa_msg = JointState()
-            iiwa_msg.header.stamp = rospy.Time.now()
-            allegro_msg = JointState()
-            allegro_msg.header.stamp = rospy.Time.now()
             fabric_msg = JointState()
             fabric_msg.header.stamp = rospy.Time.now()
 
             # Set joint values
-            iiwa_msg.name = [
-                "iiwa_joint_1",
-                "iiwa_joint_2",
-                "iiwa_joint_3",
-                "iiwa_joint_4",
-                "iiwa_joint_5",
-                "iiwa_joint_6",
-                "iiwa_joint_7",
-            ]
-            allegro_msg.name = [
-                "allegro_joint_0",
-                "allegro_joint_1",
-                "allegro_joint_2",
-                "allegro_joint_3",
-                "allegro_joint_4",
-                "allegro_joint_5",
-                "allegro_joint_6",
-                "allegro_joint_7",
-                "allegro_joint_8",
-                "allegro_joint_9",
-                "allegro_joint_10",
-                "allegro_joint_11",
-                "allegro_joint_12",
-                "allegro_joint_13",
-                "allegro_joint_14",
-                "allegro_joint_15",
-            ]
-            fabric_msg.name = iiwa_msg.name + allegro_msg.name
-
-            iiwa_msg.position = (
-                self.fabric_q.cpu().numpy()[0, :NUM_ARM_JOINTS].tolist()
-            )  # Use the joint positions from the fabric
-            iiwa_msg.velocity = (
-                self.fabric_qd.cpu().numpy()[0, :NUM_ARM_JOINTS].tolist()
-            )  # Velocities from fabric
-            iiwa_msg.effort = [
-                0.0
-            ] * NUM_ARM_JOINTS  # Set efforts to zero for simplicity
-            allegro_msg.position = (
-                self.fabric_q.cpu()
-                .numpy()[0, NUM_ARM_JOINTS : NUM_ARM_JOINTS + NUM_HAND_JOINTS]
-                .tolist()
-            )  # Use the joint positions from the fabric
-
-            # Leave velocities and efforts as empty lists
-            allegro_msg.velocity = []
-            allegro_msg.effort = []
-
+            fabric_msg.name = IIWA_NAMES + ALLEGRO_NAMES
             fabric_msg.position = self.fabric_q.cpu().numpy()[0].tolist()
             fabric_msg.velocity = self.fabric_qd.cpu().numpy()[0].tolist()
             fabric_msg.effort = self.fabric_qdd.cpu().numpy()[0].tolist()
 
             # Publish the joint states
-            self.iiwa_cmd_pub.publish(iiwa_msg)
-            self.allegro_cmd_pub.publish(allegro_msg)
             self.fabric_pub.publish(fabric_msg)
+
+            PUBLISH_CMD = True
+            if PUBLISH_CMD:
+                iiwa_msg = JointState()
+                iiwa_msg.header.stamp = fabric_msg.header.stamp
+                iiwa_msg.name = IIWA_NAMES
+                iiwa_msg.position = fabric_msg.position[:NUM_ARM_JOINTS]
+                iiwa_msg.velocity = fabric_msg.velocity[:NUM_ARM_JOINTS]
+                iiwa_msg.effort = []  # No effort information
+                self.iiwa_cmd_pub.publish(iiwa_msg)
+
+                allegro_msg = JointState()
+                allegro_msg.header.stamp = fabric_msg.header.stamp
+                allegro_msg.name = ALLEGRO_NAMES
+                allegro_msg.position = fabric_msg.position[
+                    NUM_ARM_JOINTS : NUM_ARM_JOINTS + NUM_HAND_JOINTS
+                ]
+                allegro_msg.velocity = []  # Leave velocity as empty
+                allegro_msg.effort = []
+                self.allegro_cmd_pub.publish(allegro_msg)
 
             # Sleep to maintain the loop rate
             before_sleep_time = rospy.Time.now()
