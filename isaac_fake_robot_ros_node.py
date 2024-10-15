@@ -7,6 +7,9 @@ import torch
 import numpy as np
 import rospy
 from sensor_msgs.msg import JointState
+from geometry_msgs.msg import Pose
+from isaacgymenvs.utils.cross_embodiment.camera_extrinsics import T_R_C
+from scipy.spatial.transform import Rotation as R
 
 NUM_ARM_JOINTS = 7
 NUM_HAND_JOINTS = 16
@@ -67,6 +70,7 @@ class IsaacFakeRobotNode:
         self.allegro_pub = rospy.Publisher(
             "/allegroHand_0/joint_states", JointState, queue_size=10
         )
+        self.pose_pub = rospy.Publisher("/object_pose", Pose, queue_size=1)
         self.iiwa_cmd_sub = rospy.Subscriber(
             "/iiwa/joint_cmd", JointState, self.iiwa_joint_cmd_callback
         )
@@ -75,10 +79,12 @@ class IsaacFakeRobotNode:
         )
 
         # State
-        self.iiwa_joint_q = DEFAULT_ARM_Q
-        self.allegro_joint_q = DEFAULT_HAND_Q
-        self.iiwa_joint_qd = np.zeros(NUM_ARM_JOINTS)
-        self.allegro_joint_qd = np.zeros(NUM_HAND_JOINTS)
+        self.iiwa_joint_q = None
+        self.allegro_joint_q = None
+        self.iiwa_joint_qd = None
+        self.allegro_joint_qd = None
+        self.object_pos_R = None
+        self.object_quat_xyzw_R = None
 
         # When only testing the arm, set this to False to ignore the Allegro hand
         self.WAIT_FOR_ALLEGRO_CMD = True
@@ -89,7 +95,6 @@ class IsaacFakeRobotNode:
         _, CONFIG_PATH = restore_file_from_wandb(
             "https://wandb.ai/tylerlum/cross_embodiment/groups/2024-10-05_cup_fabric_reset-early_multigpu/files/runs/TOP_4-freq_coll-on_juno1_2_2024-10-07_23-27-58-967674/config_resolved.yaml?runName=TOP_4-freq_coll-on_juno1_2_2024-10-07_23-27-58-967674"
         )
-        # CONFIG_PATH = "/afs/cs.stanford.edu/u/tylerlum/github_repos/bidexhands_isaacgymenvs/isaacgymenvs/runs/TOP_4-freq_coll-on_juno1_2_2024-10-15_11-29-10-054905/config_resolved.yaml"
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
         self.env = create_env(
             config_path=CONFIG_PATH,
@@ -109,28 +114,35 @@ class IsaacFakeRobotNode:
         """Callback to update the commanded joint positions."""
         self.allegro_joint_cmd = np.array(msg.position)
 
-    def update_joint_states(self):
+    def update_states(self):
         """Update the PyBullet simulation with the commanded joint positions."""
         if self.iiwa_joint_cmd is None or self.allegro_joint_cmd is None:
             rospy.logwarn(
                 f"Waiting: iiwa_joint_cmd: {self.iiwa_joint_cmd}, allegro_joint_cmd: {self.allegro_joint_cmd}"
             )
-            return
-
-        rospy.loginfo(
-            f"Updating PyBullet with iiwa joint commands: {self.iiwa_joint_cmd}, allegro joint commands: {self.allegro_joint_cmd}"
-        )
-
-        action = (
-            torch.from_numpy(
-                np.concatenate([self.iiwa_joint_cmd, self.allegro_joint_cmd])
+            self.env.step_no_fabric(
+                torch.zeros(
+                    (self.env.num_envs, self.env.num_actions),
+                    device=self.device,
+                    dtype=torch.float,
+                ),
+                set_dof_pos_targets=False,
             )
-            .to(device=self.device, dtype=torch.float)
-            .unsqueeze(dim=0)
-            .repeat_interleave(self.env.num_envs, dim=0)
-        )
+        else:
+            rospy.loginfo(
+                f"Updating PyBullet with iiwa joint commands: {self.iiwa_joint_cmd}, allegro joint commands: {self.allegro_joint_cmd}"
+            )
 
-        self.env.step_no_fabric(action)
+            action = (
+                torch.from_numpy(
+                    np.concatenate([self.iiwa_joint_cmd, self.allegro_joint_cmd])
+                )
+                .to(device=self.device, dtype=torch.float)
+                .unsqueeze(dim=0)
+                .repeat_interleave(self.env.num_envs, dim=0)
+            )
+
+            self.env.step_no_fabric(action, set_dof_pos_targets=True)
 
         right_robot_dof_pos = self.env.right_robot_dof_pos[0].detach().cpu().numpy()
         right_robot_dof_vel = self.env.right_robot_dof_vel[0].detach().cpu().numpy()
@@ -144,8 +156,22 @@ class IsaacFakeRobotNode:
             NUM_ARM_JOINTS : NUM_ARM_JOINTS + NUM_HAND_JOINTS
         ]
 
+        self.object_pos_R = self.env.object_pos[0].detach().cpu().numpy()
+        self.object_quat_xyzw_R = self.env.object_quat_xyzw[0].detach().cpu().numpy()
+
     def publish_joint_states(self):
         """Publish the current joint states from PyBullet."""
+        if (
+            self.iiwa_joint_q is None
+            or self.allegro_joint_q is None
+            or self.iiwa_joint_qd is None
+            or self.allegro_joint_qd is None
+        ):
+            rospy.logwarn(
+                f"Can't publish: iiwa_joint_q: {self.iiwa_joint_q}, allegro_joint_q: {self.allegro_joint_q}, iiwa_joint_qd: {self.iiwa_joint_qd}, allegro_joint_qd: {self.allegro_joint_qd}"
+            )
+            return
+
         iiwa_msg = JointState()
         iiwa_msg.header.stamp = rospy.Time.now()
         iiwa_msg.name = ["iiwa_joint_" + str(i) for i in range(NUM_ARM_JOINTS)]
@@ -160,16 +186,46 @@ class IsaacFakeRobotNode:
         allegro_msg.velocity = self.allegro_joint_qd.tolist()
         self.allegro_pub.publish(allegro_msg)
 
+    def publish_pose(self):
+        if self.object_pos_R is None or self.object_quat_xyzw_R is None:
+            rospy.logwarn(
+                f"Can't publish pose: object_pos_R: {self.object_pos_R}, object_quat_xyzw_R: {self.object_quat_xyzw_R}"
+            )
+            return
+
+        T_R_O = np.eye(4)
+        T_R_O[:3, 3] = self.object_pos_R
+        T_R_O[:3, :3] = R.from_quat(self.object_quat_xyzw_R).as_matrix()
+
+        # Extract translation and quaternion from the transformation matrix
+        T_C_R = np.linalg.inv(T_R_C)
+
+        T_C_O = T_C_R @ T_R_O
+        trans = T_C_O[:3, 3]
+        quat_xyzw = R.from_matrix(T_C_O[:3, :3]).as_quat()
+
+        # Create Pose message
+        msg = Pose()
+        msg.position.x, msg.position.y, msg.position.z = trans
+        msg.orientation.x, msg.orientation.y, msg.orientation.z, msg.orientation.w = (
+            quat_xyzw
+        )
+
+        # Publish the pose message
+        self.pose_pub.publish(msg)
+        rospy.logdebug("Pose published to /object_pose")
+
     def run(self):
         """Main loop to run the node, update simulation, and publish joint states."""
         while not rospy.is_shutdown():
             start_time = rospy.Time.now()
 
-            # Update the joint states
-            self.update_joint_states()
+            # Update the states
+            self.update_states()
 
             # Publish the current joint states to ROS
             self.publish_joint_states()
+            self.publish_pose()
 
             # Sleep to maintain the loop rate
             before_sleep_time = rospy.Time.now()
