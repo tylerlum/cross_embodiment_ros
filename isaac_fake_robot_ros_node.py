@@ -131,10 +131,6 @@ class IsaacFakeRobotNode:
                 set_dof_pos_targets=False,
             )
         else:
-            rospy.loginfo(
-                f"Updating Isaac with iiwa joint commands: {self.iiwa_joint_cmd}, allegro joint commands: {self.allegro_joint_cmd}"
-            )
-
             action = (
                 torch.from_numpy(
                     np.concatenate([self.iiwa_joint_cmd, self.allegro_joint_cmd])
