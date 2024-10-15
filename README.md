@@ -33,10 +33,13 @@ pip install pybullet tqdm wandb rl_games ruff
 pip install git+https://github.com/tylerlum/fast-simplification.git
 ```
 
+Sad hack: To actually use `isaac_fake_robot_ros_node.py`, we need Isaac Gym, which needs Python 3.8. Thus, I installed ROS Noetic globally and it worked fine (no Robostack).
+
 ## Real Nodes:
 
-* `fabric_ros_node.py`: Subscribes to `/iiwa/joint_states` to initialize fabric, subscribes to `/palm_target` and `/hand_target`, publishes to `/iiwa/joint_cmd`
-* `rl_policy_ros_node.py`: Subscribes to `/iiwa/joint_states`, `/iiwa/joint_cmd`, and `/object_pose`. Publishes to `/palm_target` and `/hand_target`
+* `fabric_ros_node.py`: Subscribes to `/iiwa/joint_states` to initialize fabric, subscribes to `/palm_target` and `/hand_target`, publishes to `/fabric_state`
+* `fabric_upsampler_ros_node.py`: Subscribes to `/fabric_state`, publishes to `/iiwa/joint_cmd`
+* `rl_policy_ros_node.py`: Subscribes to `/iiwa/joint_states`, `/fabric_state`, and `/object_pose`. Publishes to `/palm_target` and `/hand_target`
 * `visualization_ros_node.py`: Subscribes to `/iiwa/joint_states`, `/iiwa/joint_cmd`, `/palm_target`, and `/object_pose`. Visualizes all these things for debugging
 * `goal_object_pose_ros_node.py`: Publishes to `/goal_object_pose`
 
@@ -45,6 +48,7 @@ pip install git+https://github.com/tylerlum/fast-simplification.git
 * `fake_robot_ros_node.py`: Pretends to be real robot. Publishes `/iiwa/joint_states` and subscribes to `/iiwa/joint_cmd`
 * `fake_policy_ros_node.py`: Pretends to be RL policy. Publishes `/palm_target` and `/hand_target`
 * `fake_object_pose_ros_node.py`: Pretends to be FoundationPose. Publishes `/object_pose`
+* `isaac_fake_robot_ros_node.py`: Pretends to be real robot. Publishes `/iiwa/joint_states` and `/object_pose` and subscribes to `/iiwa/joint_cmd`
 
 ## Debugging Nodes:
 
