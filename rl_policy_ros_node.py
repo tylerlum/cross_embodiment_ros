@@ -8,6 +8,7 @@ import numpy as np
 import rospy
 import torch
 from geometry_msgs.msg import Pose
+from isaacgym.torch_utils import to_torch
 from isaacgymenvs.utils.cross_embodiment.camera_extrinsics import T_R_C
 from isaacgymenvs.utils.cross_embodiment.constants import (
     NUM_XYZ,
@@ -34,12 +35,12 @@ from isaacgymenvs.utils.cross_embodiment.utils import (
     assert_equals,
     rescale,
 )
-from isaacgym.torch_utils import to_torch
 from isaacgymenvs.utils.wandb_utils import restore_file_from_wandb
 from scipy.spatial.transform import Rotation as R
 from sensor_msgs.msg import JointState
 from std_msgs.msg import Float64MultiArray, MultiArrayDimension, MultiArrayLayout
 
+from print_utils import get_ros_loop_rate_str
 from rl_player import RlPlayer
 
 
@@ -469,8 +470,14 @@ class RLPolicyNode:
             before_sleep_time = rospy.Time.now()
             self.rate.sleep()
             after_sleep_time = rospy.Time.now()
+
             rospy.loginfo(
-                f"{rospy.get_name()} Max rate: {1 / (before_sleep_time - start_time).to_sec()} Hz ({(before_sleep_time - start_time).to_sec() * 1000}ms), Actual rate: {1 / (after_sleep_time - start_time).to_sec()} Hz"
+                get_ros_loop_rate_str(
+                    start_time=start_time,
+                    before_sleep_time=before_sleep_time,
+                    after_sleep_time=after_sleep_time,
+                    node_name=rospy.get_name(),
+                )
             )
 
 

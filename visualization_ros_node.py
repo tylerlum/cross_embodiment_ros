@@ -17,6 +17,7 @@ from sensor_msgs.msg import JointState, PointCloud2
 from std_msgs.msg import Float64MultiArray
 
 from fabric_world import world_dict_robot_frame
+from print_utils import get_ros_loop_rate_str
 
 NUM_ARM_JOINTS = 7
 NUM_HAND_JOINTS = 16
@@ -302,7 +303,9 @@ class VisualizationNode:
         LOAD_SCENE_MESH = False
         if LOAD_SCENE_MESH:
             scene_urdf_path = create_urdf(
-                Path("/juno/u/tylerlum/Downloads/kuka_table/new_origin_9/kuka_table.obj")
+                Path(
+                    "/juno/u/tylerlum/Downloads/kuka_table/new_origin_9/kuka_table.obj"
+                )
             )
             _scene_id = p.loadURDF(str(scene_urdf_path), useFixedBase=True)
 
@@ -753,7 +756,12 @@ class VisualizationNode:
 
             after_sleep_time = rospy.Time.now()
             rospy.loginfo(
-                f"{rospy.get_name()} Max rate: {1 / (before_sleep_time - start_time).to_sec()} Hz ({(before_sleep_time - start_time).to_sec() * 1000}ms), Actual rate: {1 / (after_sleep_time - start_time).to_sec()} Hz"
+                get_ros_loop_rate_str(
+                    start_time=start_time,
+                    before_sleep_time=before_sleep_time,
+                    after_sleep_time=after_sleep_time,
+                    node_name=rospy.get_name(),
+                )
             )
 
         # Disconnect from PyBullet when shutting down

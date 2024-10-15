@@ -6,6 +6,8 @@ import numpy as np
 import rospy
 from sensor_msgs.msg import JointState
 
+from print_utils import get_ros_loop_rate_str
+
 NUM_ARM_JOINTS = 7
 NUM_HAND_JOINTS = 16
 
@@ -176,8 +178,14 @@ class FakeRobotNode:
             before_sleep_time = rospy.Time.now()
             self.rate.sleep()
             after_sleep_time = rospy.Time.now()
+
             rospy.loginfo(
-                f"{rospy.get_name()} Max rate: {1 / (before_sleep_time - start_time).to_sec()} Hz ({(before_sleep_time - start_time).to_sec() * 1000}ms), Actual rate: {1 / (after_sleep_time - start_time).to_sec()} Hz"
+                get_ros_loop_rate_str(
+                    start_time=start_time,
+                    before_sleep_time=before_sleep_time,
+                    after_sleep_time=after_sleep_time,
+                    node_name=rospy.get_name(),
+                )
             )
 
 
