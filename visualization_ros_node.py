@@ -300,14 +300,40 @@ class VisualizationNode:
         self.robot_cmd_id = p.loadURDF(str(robot_urdf_path), useFixedBase=True)
 
         # Load the scene mesh
-        LOAD_SCENE_MESH = False
+        LOAD_SCENE_MESH = True
         if LOAD_SCENE_MESH:
-            scene_urdf_path = create_urdf(
-                Path(
-                    "/juno/u/tylerlum/Downloads/kuka_table/new_origin_9/kuka_table.obj"
+            scene_urdf_path = Path(
+                    "/juno/u/tylerlum/github_repos/bidexhands_isaacgymenvs/assets/urdf/scene_mesh/model.urdf"
+                )
+            T = np.linalg.inv(
+                np.array(
+                    [
+                        [
+                            -9.87544368e-01,
+                            -1.57333070e-01,
+                            -1.55753395e-03,
+                            7.91730212e-02,
+                        ],
+                        [
+                            -9.08047145e-04,
+                            -4.19989728e-03,
+                            9.99990768e-01,
+                            -3.65614006e-01,
+                        ],
+                        [
+                            -1.57338159e-01,
+                            9.87536666e-01,
+                            4.00471907e-03,
+                            5.94016453e-01,
+                        ],
+                        [0.00000000e00, 0.00000000e00, 0.00000000e00, 1.00000000e00],
+                    ]
                 )
             )
-            _scene_id = p.loadURDF(str(scene_urdf_path), useFixedBase=True)
+            x, y, z = T[:3, 3]
+            qx, qy, qz, qw = R.from_matrix(T[:3, :3]).as_quat()
+
+            _scene_id = p.loadURDF(str(scene_urdf_path), useFixedBase=True, basePosition=[x, y, z], baseOrientation=[qx, qy, qz, qw])
 
         # Load the object mesh
         FAR_AWAY_OBJECT_POSITION = np.ones(3)
