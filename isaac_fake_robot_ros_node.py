@@ -99,6 +99,8 @@ class IsaacFakeRobotNode:
         self.env = create_env(
             config_path=CONFIG_PATH,
             device=self.device,
+            headless=True,
+            enable_viewer_sync_at_start=False,
         )
 
         # Set control rate
@@ -115,7 +117,7 @@ class IsaacFakeRobotNode:
         self.allegro_joint_cmd = np.array(msg.position)
 
     def update_states(self):
-        """Update the PyBullet simulation with the commanded joint positions."""
+        """Update the Isaac simulation with the commanded joint positions."""
         if self.iiwa_joint_cmd is None or self.allegro_joint_cmd is None:
             rospy.logwarn(
                 f"Waiting: iiwa_joint_cmd: {self.iiwa_joint_cmd}, allegro_joint_cmd: {self.allegro_joint_cmd}"
@@ -130,7 +132,7 @@ class IsaacFakeRobotNode:
             )
         else:
             rospy.loginfo(
-                f"Updating PyBullet with iiwa joint commands: {self.iiwa_joint_cmd}, allegro joint commands: {self.allegro_joint_cmd}"
+                f"Updating Isaac with iiwa joint commands: {self.iiwa_joint_cmd}, allegro joint commands: {self.allegro_joint_cmd}"
             )
 
             action = (
@@ -160,7 +162,7 @@ class IsaacFakeRobotNode:
         self.object_quat_xyzw_R = self.env.object_quat_xyzw[0].detach().cpu().numpy()
 
     def publish_joint_states(self):
-        """Publish the current joint states from PyBullet."""
+        """Publish the current joint states from Isaac."""
         if (
             self.iiwa_joint_q is None
             or self.allegro_joint_q is None
@@ -232,7 +234,7 @@ class IsaacFakeRobotNode:
             self.rate.sleep()
             after_sleep_time = rospy.Time.now()
             rospy.loginfo(
-                f"Max rate: {1 / (before_sleep_time - start_time).to_sec()} Hz ({(before_sleep_time - start_time).to_sec() * 1000}ms), Actual rate: {1 / (after_sleep_time - start_time).to_sec()} Hz"
+                f"{rospy.get_name()} Max rate: {1 / (before_sleep_time - start_time).to_sec()} Hz ({(before_sleep_time - start_time).to_sec() * 1000}ms), Actual rate: {1 / (after_sleep_time - start_time).to_sec()} Hz"
             )
 
 

@@ -116,12 +116,16 @@ class RLPolicyNode:
         # self.config_path = "/move/u/tylerlum/github_repos/bidexhands_isaacgymenvs/isaacgymenvs/runs/RIGHT_1-freq_coll-on_damp-25_move3_2024-10-02_04-42-29-349841/config_resolved.yaml"  # Update this path
         # self.checkpoint_path = "/move/u/tylerlum/github_repos/bidexhands_isaacgymenvs/isaacgymenvs/runs/RIGHT_1-freq_coll-on_damp-25_move3_2024-10-02_04-42-29-349841/nn/last_RIGHT_1-freq_coll-on_damp-25_move3_ep_13000_rew_124.79679.pth"  # Update this path
         _, self.config_path = restore_file_from_wandb(
-            "https://wandb.ai/tylerlum/cross_embodiment/groups/2024-10-05_cup_fabric_reset-early_multigpu/files/runs/TOP_4-freq_coll-on_juno1_2_2024-10-07_23-27-58-967674/config_resolved.yaml?runName=TOP_4-freq_coll-on_juno1_2_2024-10-07_23-27-58-967674"
+            # "https://wandb.ai/tylerlum/cross_embodiment/groups/2024-10-05_cup_fabric_reset-early_multigpu/files/runs/TOP_4-freq_coll-on_juno1_2_2024-10-07_23-27-58-967674/config_resolved.yaml?runName=TOP_4-freq_coll-on_juno1_2_2024-10-07_23-27-58-967674"
             # "https://wandb.ai/tylerlum/cross_embodiment/groups/2024-10-05_cup_fabric_reset-early_multigpu/files/runs/LEFT_4-freq_juno2_2024-10-07_23-20-48-082226/config_resolved.yaml?runName=LEFT_4-freq_juno2_2024-10-07_23-20-48-082226"
+            "https://wandb.ai/tylerlum/cross_embodiment/groups/2024-10-06_cup_fabric_privileged_multigpu/files/runs/TOP_LSTM_DRSmall_ws-16_1gpu_2024-10-09_09-25-10-276712/config_resolved.yaml?runName=TOP_LSTM_DRSmall_ws-16_1gpu_2024-10-09_09-25-10-276712"
+            # "https://wandb.ai/tylerlum/cross_embodiment/groups/2024-10-06_cup_fabric_harder_privileged_multigpu/files/runs/LEFT_LSTM_Friction0-3_juno1_2024-10-09_09-03-57-666419/config_resolved.yaml?runName=LEFT_LSTM_Friction0-3_juno1_2024-10-09_09-03-57-666419"
         )
         _, self.checkpoint_path = restore_file_from_wandb(
-            "https://wandb.ai/tylerlum/cross_embodiment/groups/2024-10-05_cup_fabric_reset-early_multigpu/files/runs/TOP_4-freq_coll-on_juno1_2_2024-10-07_23-27-58-967674/nn/TOP_4-freq_coll-on_juno1_2.pth?runName=TOP_4-freq_coll-on_juno1_2_2024-10-07_23-27-58-967674"
+            # "https://wandb.ai/tylerlum/cross_embodiment/groups/2024-10-05_cup_fabric_reset-early_multigpu/files/runs/TOP_4-freq_coll-on_juno1_2_2024-10-07_23-27-58-967674/nn/TOP_4-freq_coll-on_juno1_2.pth?runName=TOP_4-freq_coll-on_juno1_2_2024-10-07_23-27-58-967674"
             # "https://wandb.ai/tylerlum/cross_embodiment/groups/2024-10-05_cup_fabric_reset-early_multigpu/files/runs/LEFT_4-freq_juno2_2024-10-07_23-20-48-082226/nn/LEFT_4-freq_juno2.pth?runName=LEFT_4-freq_juno2_2024-10-07_23-20-48-082226"
+            "https://wandb.ai/tylerlum/cross_embodiment/groups/2024-10-06_cup_fabric_privileged_multigpu/files/runs/TOP_LSTM_DRSmall_ws-16_1gpu_2024-10-09_09-25-10-276712/nn/TOP_LSTM_DRSmall_ws-16_1gpu.pth?runName=TOP_LSTM_DRSmall_ws-16_1gpu_2024-10-09_09-25-10-276712"
+            # "https://wandb.ai/tylerlum/cross_embodiment/groups/2024-10-06_cup_fabric_harder_privileged_multigpu/files/runs/LEFT_LSTM_Friction0-3_juno1_2024-10-09_09-03-57-666419/nn/LEFT_LSTM_Friction0-3_juno1.pth?runName=LEFT_LSTM_Friction0-3_juno1_2024-10-09_09-03-57-666419"
         )
 
         # Create the RL player
@@ -466,7 +470,7 @@ class RLPolicyNode:
             self.rate.sleep()
             after_sleep_time = rospy.Time.now()
             rospy.loginfo(
-                f"Max rate: {1 / (before_sleep_time - start_time).to_sec()} Hz ({(before_sleep_time - start_time).to_sec() * 1000}ms), Actual rate: {1 / (after_sleep_time - start_time).to_sec()} Hz"
+                f"{rospy.get_name()} Max rate: {1 / (before_sleep_time - start_time).to_sec()} Hz ({(before_sleep_time - start_time).to_sec() * 1000}ms), Actual rate: {1 / (after_sleep_time - start_time).to_sec()} Hz"
             )
 
 

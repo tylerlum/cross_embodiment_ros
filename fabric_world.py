@@ -79,6 +79,7 @@ world_dict_table_frame = {
 }
 
 SAFETY_BUFFER = 0.01  # MAKE THE TABLE HIGHER
+# SAFETY_BUFFER = -0.01  # MAKE THE TABLE HIGHER
 
 T_O_R = np.eye(4)
 T_O_R[:3, 3] = [-0.15, -0.2, -0.165 + 0.5 * THICKNESS - SAFETY_BUFFER]

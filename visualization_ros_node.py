@@ -299,10 +299,12 @@ class VisualizationNode:
         self.robot_cmd_id = p.loadURDF(str(robot_urdf_path), useFixedBase=True)
 
         # Load the scene mesh
-        scene_urdf_path = create_urdf(
-            Path("/juno/u/tylerlum/Downloads/kuka_table/new_origin_9/kuka_table.obj")
-        )
-        _scene_id = p.loadURDF(str(scene_urdf_path), useFixedBase=True)
+        LOAD_SCENE_MESH = False
+        if LOAD_SCENE_MESH:
+            scene_urdf_path = create_urdf(
+                Path("/juno/u/tylerlum/Downloads/kuka_table/new_origin_9/kuka_table.obj")
+            )
+            _scene_id = p.loadURDF(str(scene_urdf_path), useFixedBase=True)
 
         # Load the object mesh
         FAR_AWAY_OBJECT_POSITION = np.ones(3)
@@ -697,12 +699,14 @@ class VisualizationNode:
         )
 
         # Update the point cloud
-        if self.point_cloud_and_colors is not None:
-            draw_colored_point_cloud(
-                point_cloud_and_colors=self.point_cloud_and_colors,
-            )
-        else:
-            rospy.logwarn("point_cloud_and_colors is None")
+        LOAD_POINT_CLOUD = False
+        if LOAD_POINT_CLOUD:
+            if self.point_cloud_and_colors is not None:
+                draw_colored_point_cloud(
+                    point_cloud_and_colors=self.point_cloud_and_colors,
+                )
+            else:
+                rospy.logwarn("point_cloud_and_colors is None")
 
     def run(self):
         """Main loop to run the node, update simulation, and publish joint states."""
@@ -749,7 +753,7 @@ class VisualizationNode:
 
             after_sleep_time = rospy.Time.now()
             rospy.loginfo(
-                f"Max rate: {1 / (before_sleep_time - start_time).to_sec()} Hz ({(before_sleep_time - start_time).to_sec() * 1000}ms), Actual rate: {1 / (after_sleep_time - start_time).to_sec()} Hz"
+                f"{rospy.get_name()} Max rate: {1 / (before_sleep_time - start_time).to_sec()} Hz ({(before_sleep_time - start_time).to_sec() * 1000}ms), Actual rate: {1 / (after_sleep_time - start_time).to_sec()} Hz"
             )
 
         # Disconnect from PyBullet when shutting down

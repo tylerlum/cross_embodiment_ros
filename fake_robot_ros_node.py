@@ -177,7 +177,7 @@ class FakeRobotNode:
             self.rate.sleep()
             after_sleep_time = rospy.Time.now()
             rospy.loginfo(
-                f"Max rate: {1 / (before_sleep_time - start_time).to_sec()} Hz ({(before_sleep_time - start_time).to_sec() * 1000}ms), Actual rate: {1 / (after_sleep_time - start_time).to_sec()} Hz"
+                f"{rospy.get_name()} Max rate: {1 / (before_sleep_time - start_time).to_sec()} Hz ({(before_sleep_time - start_time).to_sec() * 1000}ms), Actual rate: {1 / (after_sleep_time - start_time).to_sec()} Hz"
             )
 
 

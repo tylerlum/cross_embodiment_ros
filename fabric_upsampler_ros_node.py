@@ -10,6 +10,8 @@ NUM_ARM_JOINTS = 7
 NUM_HAND_JOINTS = 16
 INTERPOLATION_DT = 1.0 / 120.0  # Time to reach the new target (seconds)
 
+MAX_DT_COMMAND_SEC = 1.0  # Maximum time to wait for a new command (seconds)
+
 
 class FabricUpsampler:
     def __init__(self):
@@ -57,12 +59,18 @@ class FabricUpsampler:
         assert self.last_command_time is not None
 
         while not rospy.is_shutdown():
-            current_time = rospy.Time.now()
+            start_time = rospy.Time.now()
             last_fabric_msg = copy.deepcopy(self.last_fabric_msg)
             last_command_time = copy.copy(self.last_command_time)
 
             # Calculate the elapsed time since the last command was received
-            dt = (current_time - last_command_time).to_sec()
+            dt = (start_time - last_command_time).to_sec()
+
+            if dt > MAX_DT_COMMAND_SEC:
+                rospy.logerr(
+                    f"Did not receive command for {dt} seconds. Stopping the upsampler."
+                )
+                return
 
             # Compute the interpolation factor (alpha) clipped between 0 and 1
             alpha = np.clip(dt / INTERPOLATION_DT, a_min=0, a_max=1)
@@ -120,8 +128,13 @@ class FabricUpsampler:
             allegro_msg.effort = []  # Leave effort as empty
             self.allegro_cmd_pub.publish(allegro_msg)
 
-            # Maintain the loop rate
+            # Sleep to maintain the loop rate
+            before_sleep_time = rospy.Time.now()
             self.rate.sleep()
+            after_sleep_time = rospy.Time.now()
+            rospy.loginfo(
+                f"{rospy.get_name()} Max rate: {1 / (before_sleep_time - start_time).to_sec()} Hz ({(before_sleep_time - start_time).to_sec() * 1000}ms), Actual rate: {1 / (after_sleep_time - start_time).to_sec()} Hz"
+            )
 
 
 if __name__ == "__main__":
