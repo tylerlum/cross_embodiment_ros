@@ -33,6 +33,8 @@ pip install pybullet tqdm wandb rl_games ruff
 pip install git+https://github.com/tylerlum/fast-simplification.git
 ```
 
+Sad hack: To actually use `isaac_fake_robot_ros_node.py`, we need Isaac Gym, which needs Python 3.8. Thus, I installed ROS Noetic globally and it worked fine (no Robostack).
+
 ## Real Nodes:
 
 * `fabric_ros_node.py`: Subscribes to `/iiwa/joint_states` to initialize fabric, subscribes to `/palm_target` and `/hand_target`, publishes to `/fabric_state`
