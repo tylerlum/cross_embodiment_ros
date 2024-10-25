@@ -452,7 +452,7 @@ class VisualizationNode:
 
         # Create the hand target
         FAR_AWAY_PALM_TARGET = np.concatenate([np.ones(3), np.zeros(3)])
-        self.hand_target_lines = visualize_transform(
+        self.palm_target_lines = visualize_transform(
             xyz=FAR_AWAY_PALM_TARGET[:3],
             rotation_matrix=R.from_euler("ZYX", FAR_AWAY_PALM_TARGET[3:]).as_matrix(),
         )
@@ -663,6 +663,8 @@ class VisualizationNode:
         else:
             goal_object_pose = self.goal_object_pose
 
+        # rospy.logerr(f"object_rot: {object_pose[:3, :3]}, goal_object_rot: {goal_object_pose[:3, :3]}")
+
         # Command Robot: Set the commanded joint positions
         q_cmd = np.concatenate([iiwa_joint_cmd, allegro_joint_cmd])
         q_state = np.concatenate([iiwa_joint_state, allegro_joint_state])
@@ -673,7 +675,7 @@ class VisualizationNode:
         visualize_transform(
             xyz=palm_target[:3],
             rotation_matrix=R.from_euler("ZYX", palm_target[3:]).as_matrix(),
-            lines=self.hand_target_lines,
+            lines=self.palm_target_lines,
         )
 
         # Visualize the palm of the robot
