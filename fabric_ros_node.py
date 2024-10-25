@@ -3,9 +3,11 @@
 import numpy as np
 import rospy
 import torch
+from typing import Literal
 
 # Import from the fabrics_sim package
 from fabrics_sim.fabrics.kuka_allegro_pose_fabric import KukaAllegroPoseFabric
+from fabrics_sim.fabrics.kuka_allegro_pose_allhand_fabric import KukaAllegroPoseAllHandFabric
 from fabrics_sim.integrator.integrators import DisplacementIntegrator
 from fabrics_sim.utils.utils import capture_fabric, initialize_warp
 from fabrics_sim.worlds.world_mesh_model import WorldMeshesModel
@@ -45,6 +47,7 @@ ALLEGRO_NAMES = [
     "allegro_joint_15",
 ]
 
+FABRIC_MODE: Literal["PCA", "ALL"] = "PCA"
 
 class IiwaAllegroFabricPublisher:
     def __init__(self):
@@ -157,6 +160,12 @@ class IiwaAllegroFabricPublisher:
         )
 
         # Create Kuka-Allegro Pose Fabric
+        if FABRIC_MODE == "PCA":
+            fabric_class = KukaAllegroPoseFabric
+        elif FABRIC_MODE == "ALL":
+            fabric_class = KukaAllegroPoseAllHandFabric
+        else:
+            raise ValueError(f"Invalid FABRIC_MODE = {FABRIC_MODE}")
         self.fabric = KukaAllegroPoseFabric(
             batch_size=self.num_envs,
             device=self.device,
@@ -166,8 +175,14 @@ class IiwaAllegroFabricPublisher:
         self.fabric_integrator = DisplacementIntegrator(self.fabric)
 
         # Initialize random targets for palm and hand
+        if FABRIC_MODE == "PCA":
+            num_hand_target = 5
+        elif FABRIC_MODE == "ALL":
+            num_hand_target = 16
+        else:
+            raise ValueError(f"Invalid FABRIC_MODE = {FABRIC_MODE}")
         self.fabric_hand_target = torch.zeros(
-            self.num_envs, 5, device="cuda", dtype=torch.float
+            self.num_envs, num_hand_target, device="cuda", dtype=torch.float
         )
         self.fabric_palm_target = torch.zeros(
             self.num_envs, 6, device="cuda", dtype=torch.float
