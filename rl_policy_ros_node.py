@@ -2,7 +2,7 @@
 
 import copy
 from pathlib import Path
-from typing import Optional, Tuple
+from typing import Optional, Tuple, Literal
 
 import numpy as np
 import rospy
@@ -65,6 +65,9 @@ def T_to_pos_quat_xyzw(T: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
     return pos, quat_xyzw
 
 
+FABRIC_MODE: Literal["PCA", "ALL"] = "PCA"
+
+
 class RLPolicyNode:
     def __init__(self):
         # Initialize the ROS node
@@ -109,7 +112,13 @@ class RLPolicyNode:
         # RL Player setup
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
         self.num_observations = 144  # Update this number based on actual dimensions
-        self.num_actions = 11  # First 6 for palm, last 5 for hand
+        if FABRIC_MODE == "PCA":
+            self.num_actions = 11  # First 6 for palm, last 5 for hand
+        elif FABRIC_MODE == "ALL":
+            self.num_actions = 22  # First 6 for palm, last 16 for hand
+        else:
+            raise ValueError(f"Invalid FABRIC_MODE: {FABRIC_MODE}")
+
         # self.config_path = "/move/u/tylerlum/github_repos/bidexhands_isaacgymenvs/isaacgymenvs/runs/RIGHT_1-freq_coll-on_damp-25_move3_2024-10-02_04-42-29-349841/config_resolved.yaml"  # Update this path
         # self.checkpoint_path = "/move/u/tylerlum/github_repos/bidexhands_isaacgymenvs/isaacgymenvs/runs/RIGHT_1-freq_coll-on_damp-25_move3_2024-10-02_04-42-29-349841/nn/last_RIGHT_1-freq_coll-on_damp-25_move3_ep_13000_rew_124.79679.pth"  # Update this path
         # _, self.config_path = restore_file_from_wandb(
@@ -212,12 +221,27 @@ class RLPolicyNode:
         self.palm_maxs = torch.tensor(
             [1.0, 0.7, 1.0, 3.1416, 3.1416, 3.1416], device=self.device
         )
-        self.hand_mins = torch.tensor(
-            [0.2475, -0.3286, -0.7238, -0.0192, -0.5532], device=self.device
-        )
-        self.hand_maxs = torch.tensor(
-            [3.8336, 3.0025, 0.8977, 1.0243, 0.0629], device=self.device
-        )
+
+        hand_action_space = self.player.cfg["task"]["env"]["custom"]["FABRIC_HAND_ACTION_SPACE"]
+        assert hand_action_space == FABRIC_MODE, f"Invalid hand action space: {hand_action_space} != {FABRIC_MODE}"
+        if FABRIC_MODE == "PCA":
+            self.hand_mins = torch.tensor(
+                [0.2475, -0.3286, -0.7238, -0.0192, -0.5532], device=self.device
+            )
+            self.hand_maxs = torch.tensor(
+                [3.8336, 3.0025, 0.8977, 1.0243, 0.0629], device=self.device
+            )
+        elif FABRIC_MODE == "ALL":
+            self.hand_mins = torch.tensor(
+                [-0.4700, -0.1960, -0.1740, -0.2270, -0.4700, -0.1960, -0.1740, -0.2270, -0.4700, -0.1960, -0.1740, -0.2270, 0.2630, -0.1050, -0.1890, -0.1620],
+                device=self.device
+            )
+            self.hand_maxs = torch.tensor(
+                [0.4700, 1.6100, 1.7090, 1.6180, 0.4700, 1.6100, 1.7090, 1.6180, 0.4700, 1.6100, 1.7090, 1.6180, 1.3960, 1.1630, 1.6440, 1.7190],
+                device=self.device
+            )
+        else:
+            raise ValueError(f"Invalid FABRIC_MODE = {FABRIC_MODE}")
 
         self._setup_taskmap()
         self.t = 0
@@ -494,9 +518,16 @@ class RLPolicyNode:
         self.palm_target_pub.publish(palm_msg)
 
         # Convert hand_target to Float64MultiArray and publish
+        if FABRIC_MODE == "PCA":
+            num_hand_actions = 5
+        elif FABRIC_MODE == "ALL":
+            num_hand_actions = 16
+        else:
+            raise ValueError(f"Invalid FABRIC_MODE = {FABRIC_MODE}")
+
         hand_msg = Float64MultiArray()
         hand_msg.layout = MultiArrayLayout(
-            dim=[MultiArrayDimension(label="hand_target", size=5, stride=5)],
+            dim=[MultiArrayDimension(label="hand_target", size=num_hand_actions, stride=num_hand_actions)],
             data_offset=0,
         )
         hand_msg.data = hand_target.cpu().numpy().flatten().tolist()
