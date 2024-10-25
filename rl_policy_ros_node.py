@@ -106,27 +106,87 @@ class RLPolicyNode:
             "/fabric_state", JointState, self.fabric_state_callback
         )
 
-        # ROS rate
-        self.rate_hz = 15
-        self.rate = rospy.Rate(self.rate_hz)
-
         # RL Player setup
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
         self.num_observations = 144  # Update this number based on actual dimensions
         self.num_actions = 11  # First 6 for palm, last 5 for hand
         # self.config_path = "/move/u/tylerlum/github_repos/bidexhands_isaacgymenvs/isaacgymenvs/runs/RIGHT_1-freq_coll-on_damp-25_move3_2024-10-02_04-42-29-349841/config_resolved.yaml"  # Update this path
         # self.checkpoint_path = "/move/u/tylerlum/github_repos/bidexhands_isaacgymenvs/isaacgymenvs/runs/RIGHT_1-freq_coll-on_damp-25_move3_2024-10-02_04-42-29-349841/nn/last_RIGHT_1-freq_coll-on_damp-25_move3_ep_13000_rew_124.79679.pth"  # Update this path
+        # _, self.config_path = restore_file_from_wandb(
+        #     # "https://wandb.ai/tylerlum/cross_embodiment/groups/2024-10-05_cup_fabric_reset-early_multigpu/files/runs/TOP_4-freq_coll-on_juno1_2_2024-10-07_23-27-58-967674/config_resolved.yaml?runName=TOP_4-freq_coll-on_juno1_2_2024-10-07_23-27-58-967674"
+        #     # "https://wandb.ai/tylerlum/cross_embodiment/groups/2024-10-05_cup_fabric_reset-early_multigpu/files/runs/LEFT_4-freq_juno2_2024-10-07_23-20-48-082226/config_resolved.yaml?runName=LEFT_4-freq_juno2_2024-10-07_23-20-48-082226"
+        #     "https://wandb.ai/tylerlum/cross_embodiment/groups/2024-10-06_cup_fabric_privileged_multigpu/files/runs/TOP_LSTM_DRSmall_ws-16_1gpu_2024-10-09_09-25-10-276712/config_resolved.yaml?runName=TOP_LSTM_DRSmall_ws-16_1gpu_2024-10-09_09-25-10-276712"
+        #     # "https://wandb.ai/tylerlum/cross_embodiment/groups/2024-10-06_cup_fabric_harder_privileged_multigpu/files/runs/LEFT_LSTM_Friction0-3_juno1_2024-10-09_09-03-57-666419/config_resolved.yaml?runName=LEFT_LSTM_Friction0-3_juno1_2024-10-09_09-03-57-666419"
+        # )
+        # _, self.checkpoint_path = restore_file_from_wandb(
+        #     # "https://wandb.ai/tylerlum/cross_embodiment/groups/2024-10-05_cup_fabric_reset-early_multigpu/files/runs/TOP_4-freq_coll-on_juno1_2_2024-10-07_23-27-58-967674/nn/TOP_4-freq_coll-on_juno1_2.pth?runName=TOP_4-freq_coll-on_juno1_2_2024-10-07_23-27-58-967674"
+        #     # "https://wandb.ai/tylerlum/cross_embodiment/groups/2024-10-05_cup_fabric_reset-early_multigpu/files/runs/LEFT_4-freq_juno2_2024-10-07_23-20-48-082226/nn/LEFT_4-freq_juno2.pth?runName=LEFT_4-freq_juno2_2024-10-07_23-20-48-082226"
+        #     "https://wandb.ai/tylerlum/cross_embodiment/groups/2024-10-06_cup_fabric_privileged_multigpu/files/runs/TOP_LSTM_DRSmall_ws-16_1gpu_2024-10-09_09-25-10-276712/nn/TOP_LSTM_DRSmall_ws-16_1gpu.pth?runName=TOP_LSTM_DRSmall_ws-16_1gpu_2024-10-09_09-25-10-276712"
+        #     # "https://wandb.ai/tylerlum/cross_embodiment/groups/2024-10-06_cup_fabric_harder_privileged_multigpu/files/runs/LEFT_LSTM_Friction0-3_juno1_2024-10-09_09-03-57-666419/nn/LEFT_LSTM_Friction0-3_juno1.pth?runName=LEFT_LSTM_Friction0-3_juno1_2024-10-09_09-03-57-666419"
+        # )
+        # self.config_path = "/juno/u/tylerlum/Downloads/RIGHT_coll-off_juno2_1gpu_2024-10-15_15-50-39-601698/config_resolved.yaml"
+        # self.checkpoint_path = "/juno/u/tylerlum/Downloads/RIGHT_coll-off_juno2_1gpu_2024-10-15_15-50-39-601698/RIGHT_coll-off_juno2_1gpu.pth"
+        # self.config_path = "/juno/u/tylerlum/Downloads/LEFT_coll-off_juno2_1gpu_2024-10-15_15-52-42-495096/config_resolved.yaml"
+        # self.checkpoint_path = "/juno/u/tylerlum/Downloads/LEFT_coll-off_juno2_1gpu_2024-10-15_15-52-42-495096/LEFT_coll-off_juno2_1gpu.pth"
         _, self.config_path = restore_file_from_wandb(
-            # "https://wandb.ai/tylerlum/cross_embodiment/groups/2024-10-05_cup_fabric_reset-early_multigpu/files/runs/TOP_4-freq_coll-on_juno1_2_2024-10-07_23-27-58-967674/config_resolved.yaml?runName=TOP_4-freq_coll-on_juno1_2_2024-10-07_23-27-58-967674"
-            # "https://wandb.ai/tylerlum/cross_embodiment/groups/2024-10-05_cup_fabric_reset-early_multigpu/files/runs/LEFT_4-freq_juno2_2024-10-07_23-20-48-082226/config_resolved.yaml?runName=LEFT_4-freq_juno2_2024-10-07_23-20-48-082226"
-            "https://wandb.ai/tylerlum/cross_embodiment/groups/2024-10-06_cup_fabric_privileged_multigpu/files/runs/TOP_LSTM_DRSmall_ws-16_1gpu_2024-10-09_09-25-10-276712/config_resolved.yaml?runName=TOP_LSTM_DRSmall_ws-16_1gpu_2024-10-09_09-25-10-276712"
-            # "https://wandb.ai/tylerlum/cross_embodiment/groups/2024-10-06_cup_fabric_harder_privileged_multigpu/files/runs/LEFT_LSTM_Friction0-3_juno1_2024-10-09_09-03-57-666419/config_resolved.yaml?runName=LEFT_LSTM_Friction0-3_juno1_2024-10-09_09-03-57-666419"
+            # "https://wandb.ai/tylerlum/cross_embodiment/groups/2024-10-16_crackerbox_fabric_hard/files/runs/lstmnoconcat_move1_2024-10-16_02-00-31-760423/config_resolved.yaml?runName=lstmnoconcat_move1_2024-10-16_02-00-31-760423"
+            # "https://wandb.ai/tylerlum/cross_embodiment/groups/2024-10-16_crackerbox_fabric_hard/files/runs/noise0-02_move2_2024-10-16_02-04-04-538040/config_resolved.yaml?runName=noise0-02_move2_2024-10-16_02-04-04-538040"
+            # "https://wandb.ai/tylerlum/cross_embodiment/groups/2024-10-16_crackerbox_fabric_hard/files/runs/friction0-3_juno2_2024-10-16_01-56-46-200454/config_resolved.yaml?runName=friction0-3_juno2_2024-10-16_01-56-46-200454"
+            # "https://wandb.ai/tylerlum/cross_embodiment/groups/2024-10-16_crackerbox_fabric_hard/files/runs/base_run_juno2_2024-10-16_01-49-18-084062/config_resolved.yaml?runName=base_run_juno2_2024-10-16_01-49-18-084062"
+            # "https://wandb.ai/tylerlum/cross_embodiment/groups/2024-10-16_crackerbox_fabric_hard/files/runs/succ0-05_move2_2024-10-16_02-04-04-537736/config_resolved.yaml?runName=succ0-05_move2_2024-10-16_02-04-04-537736"
+            # "https://wandb.ai/tylerlum/cross_embodiment/groups/2024-10-16_crackerbox_fabric_hard/files/runs/DRLarge_friction0-5_juno2_2024-10-16_01-56-25-580392/config_resolved.yaml?runName=DRLarge_friction0-5_juno2_2024-10-16_01-56-25-580392"
+            # "https://wandb.ai/tylerlum/cross_embodiment/groups/2024-10-17_crackerbox_fabric_friction_mass_inertia/files/runs/heavy_run_juno2_2024-10-16_23-33-13-473749/config_resolved.yaml?runName=heavy_run_juno2_2024-10-16_23-33-13-473749"
+            # "https://wandb.ai/tylerlum/cross_embodiment/groups/2024-10-17_crackerbox_fabric_friction_mass_inertia/files/runs/base_run_juno2_2024-10-16_23-33-13-473827/config_resolved.yaml?runName=base_run_juno2_2024-10-16_23-33-13-473827"
+            # "https://wandb.ai/tylerlum/cross_embodiment/groups/2024-10-17_crackerbox_fabric_friction_mass_inertia/files/runs/friction0-3_juno2_2024-10-16_23-33-13-473890/config_resolved.yaml?runName=friction0-3_juno2_2024-10-16_23-33-13-473890"
+            # "https://wandb.ai/tylerlum/cross_embodiment/groups/2024-10-17_crackerbox_fabric_friction_mass_inertia/files/runs/heavy_run_friction0-5_move1_2024-10-16_23-42-30-218923/config_resolved.yaml?runName=heavy_run_friction0-5_move1_2024-10-16_23-42-30-218923"
+            # "https://wandb.ai/tylerlum/cross_embodiment/groups/2024-10-17_crackerbox_fabric_friction_mass_inertia/files/runs/orient0_juno1_2024-10-16_23-45-43-871057/config_resolved.yaml?runName=orient0_juno1_2024-10-16_23-45-43-871057"
+            # "https://wandb.ai/tylerlum/cross_embodiment/groups/2024-10-21_crackerbox/files/runs/damp45_ws-19_2024-10-21_02-22-24-946771/config_resolved.yaml?runName=damp45_ws-19_2024-10-21_02-22-24-946771"
+            # "https://wandb.ai/tylerlum/cross_embodiment/groups/2024-10-18_crackerbox/files/runs/friction0-5_move1_2024-10-18_01-20-15-137476/config_resolved.yaml?runName=friction0-5_move1_2024-10-18_01-20-15-137476"
+            # "https://wandb.ai/tylerlum/cross_embodiment/groups/2024-10-21_crackerbox/files/runs/freq1_move2_2024-10-21_02-18-40-861441/config_resolved.yaml?runName=freq1_move2_2024-10-21_02-18-40-861441"
+            # "https://wandb.ai/tylerlum/cross_embodiment/groups/2024-10-18_crackerbox/files/runs/noise0-05_move1_2024-10-18_01-20-15-137825/config_resolved.yaml?runName=noise0-05_move1_2024-10-18_01-20-15-137825"
+            # "https://wandb.ai/tylerlum/cross_embodiment/groups/2024-10-21_crackerbox/files/runs/base_move2_2024-10-21_02-18-40-861433/config_resolved.yaml?runName=base_move2_2024-10-21_02-18-40-861433"
+            # "https://wandb.ai/tylerlum/cross_embodiment/groups/2024-10-21_crackerbox/files/runs/coll-off_move1_2024-10-21_02-18-42-117793/config_resolved.yaml?runName=coll-off_move1_2024-10-21_02-18-42-117793"
+            # "https://wandb.ai/tylerlum/cross_embodiment/groups/2024-10-22_crackerbox_trajectory/files/runs/lift_damp45_move1_2024-10-22_00-20-06-579299/config_resolved.yaml?runName=lift_damp45_move1_2024-10-22_00-20-06-579299"
+            # "https://wandb.ai/tylerlum/cross_embodiment/groups/2024-10-22_crackerbox_trajectory/files/runs/lift_move2_2024-10-22_00-20-08-861728/config_resolved.yaml?runName=lift_move2_2024-10-22_00-20-08-861728"
+            # "https://wandb.ai/tylerlum/cross_embodiment/groups/2024-10-22_crackerbox_trajectory/files/runs/push_damp45_ws-16_2024-10-22_00-30-45-714566/config_resolved.yaml?runName=push_damp45_ws-16_2024-10-22_00-30-45-714566"
+            # "https://wandb.ai/tylerlum/cross_embodiment/groups/2024-10-22_crackerbox_trajectory/files/runs/diagonal_push_damp45_move1_2024-10-22_00-20-06-579262/config_resolved.yaml?runName=diagonal_push_damp45_move1_2024-10-22_00-20-06-579262"
+            # "https://wandb.ai/tylerlum/cross_embodiment/groups/2024-10-23_crackerbox_trajectory_harder/files/runs/lift_base_move1_2024-10-23_03-23-20-279676/config_resolved.yaml?runName=lift_base_move1_2024-10-23_03-23-20-279676"
+            # "https://wandb.ai/tylerlum/cross_embodiment/groups/2024-10-23_crackerbox_trajectory_harder/files/runs/lift_friction0-5_freq1_move2_2024-10-23_03-35-15-483418/config_resolved.yaml?runName=lift_friction0-5_freq1_move2_2024-10-23_03-35-15-483418"
+            # "https://wandb.ai/tylerlum/cross_embodiment/groups/2024-10-23_crackerbox_trajectory_harder/files/runs/push_friction0-3_move3_2024-10-23_03-44-30-072131/config_resolved.yaml?runName=push_friction0-3_move3_2024-10-23_03-44-30-072131"
+            # "https://wandb.ai/tylerlum/cross_embodiment/groups/2024-10-23_crackerbox_trajectory_harder/files/runs/lift_friction0-5_DRLarge_force0-1_noise0-02_move1_2024-10-23_03-32-30-289040/config_resolved.yaml?runName=lift_friction0-5_DRLarge_force0-1_noise0-02_move1_2024-10-23_03-32-30-289040"
+            # "https://wandb.ai/tylerlum/cross_embodiment/groups/2024-10-23_crackerbox_trajectory_harder/files/runs/lift_friction0-5_move2_2024-10-23_03-35-31-266374/config_resolved.yaml?runName=lift_friction0-5_move2_2024-10-23_03-35-31-266374"
+            # "https://wandb.ai/tylerlum/cross_embodiment/groups/2024-10-23_crackerbox_trajectory_harder/files/runs/push_friction0-5_freq1_juno2_2024-10-23_03-41-46-838160/config_resolved.yaml?runName=push_friction0-5_freq1_juno2_2024-10-23_03-41-46-838160"
+            "https://wandb.ai/tylerlum/cross_embodiment/groups/2024-10-23_crackerbox_trajectory_harder/files/runs/push_friction0-5_DRLarge_force0-1_noise0-02_ws-16_2024-10-23_03-40-11-262111/config_resolved.yaml?runName=push_friction0-5_DRLarge_force0-1_noise0-02_ws-16_2024-10-23_03-40-11-262111"
         )
         _, self.checkpoint_path = restore_file_from_wandb(
-            # "https://wandb.ai/tylerlum/cross_embodiment/groups/2024-10-05_cup_fabric_reset-early_multigpu/files/runs/TOP_4-freq_coll-on_juno1_2_2024-10-07_23-27-58-967674/nn/TOP_4-freq_coll-on_juno1_2.pth?runName=TOP_4-freq_coll-on_juno1_2_2024-10-07_23-27-58-967674"
-            # "https://wandb.ai/tylerlum/cross_embodiment/groups/2024-10-05_cup_fabric_reset-early_multigpu/files/runs/LEFT_4-freq_juno2_2024-10-07_23-20-48-082226/nn/LEFT_4-freq_juno2.pth?runName=LEFT_4-freq_juno2_2024-10-07_23-20-48-082226"
-            "https://wandb.ai/tylerlum/cross_embodiment/groups/2024-10-06_cup_fabric_privileged_multigpu/files/runs/TOP_LSTM_DRSmall_ws-16_1gpu_2024-10-09_09-25-10-276712/nn/TOP_LSTM_DRSmall_ws-16_1gpu.pth?runName=TOP_LSTM_DRSmall_ws-16_1gpu_2024-10-09_09-25-10-276712"
-            # "https://wandb.ai/tylerlum/cross_embodiment/groups/2024-10-06_cup_fabric_harder_privileged_multigpu/files/runs/LEFT_LSTM_Friction0-3_juno1_2024-10-09_09-03-57-666419/nn/LEFT_LSTM_Friction0-3_juno1.pth?runName=LEFT_LSTM_Friction0-3_juno1_2024-10-09_09-03-57-666419"
+            # "https://wandb.ai/tylerlum/cross_embodiment/groups/2024-10-16_crackerbox_fabric_hard/files/runs/lstmnoconcat_move1_2024-10-16_02-00-31-760423/nn/lstmnoconcat_move1.pth?runName=lstmnoconcat_move1_2024-10-16_02-00-31-760423"
+            # "https://wandb.ai/tylerlum/cross_embodiment/groups/2024-10-16_crackerbox_fabric_hard/files/runs/noise0-02_move2_2024-10-16_02-04-04-538040/nn/noise0-02_move2.pth?runName=noise0-02_move2_2024-10-16_02-04-04-538040"
+            # "https://wandb.ai/tylerlum/cross_embodiment/groups/2024-10-16_crackerbox_fabric_hard/files/runs/friction0-3_juno2_2024-10-16_01-56-46-200454/nn/friction0-3_juno2.pth?runName=friction0-3_juno2_2024-10-16_01-56-46-200454"
+            # "https://wandb.ai/tylerlum/cross_embodiment/groups/2024-10-16_crackerbox_fabric_hard/files/runs/base_run_juno2_2024-10-16_01-49-18-084062/nn/base_run_juno2.pth?runName=base_run_juno2_2024-10-16_01-49-18-084062"
+            # "https://wandb.ai/tylerlum/cross_embodiment/groups/2024-10-16_crackerbox_fabric_hard/files/runs/succ0-05_move2_2024-10-16_02-04-04-537736/nn/succ0-05_move2.pth?runName=succ0-05_move2_2024-10-16_02-04-04-537736"
+            # "https://wandb.ai/tylerlum/cross_embodiment/groups/2024-10-16_crackerbox_fabric_hard/files/runs/DRLarge_friction0-5_juno2_2024-10-16_01-56-25-580392/nn/DRLarge_friction0-5_juno2.pth?runName=DRLarge_friction0-5_juno2_2024-10-16_01-56-25-580392"
+            # "https://wandb.ai/tylerlum/cross_embodiment/groups/2024-10-17_crackerbox_fabric_friction_mass_inertia/files/runs/heavy_run_juno2_2024-10-16_23-33-13-473749/nn/heavy_run_juno2.pth?runName=heavy_run_juno2_2024-10-16_23-33-13-473749"
+            # "https://wandb.ai/tylerlum/cross_embodiment/groups/2024-10-17_crackerbox_fabric_friction_mass_inertia/files/runs/base_run_juno2_2024-10-16_23-33-13-473827/nn/base_run_juno2.pth?runName=base_run_juno2_2024-10-16_23-33-13-473827"
+            # "https://wandb.ai/tylerlum/cross_embodiment/groups/2024-10-17_crackerbox_fabric_friction_mass_inertia/files/runs/friction0-3_juno2_2024-10-16_23-33-13-473890/nn/friction0-3_juno2.pth?runName=friction0-3_juno2_2024-10-16_23-33-13-473890"
+            # "https://wandb.ai/tylerlum/cross_embodiment/groups/2024-10-17_crackerbox_fabric_friction_mass_inertia/files/runs/heavy_run_friction0-5_move1_2024-10-16_23-42-30-218923/nn/heavy_run_friction0-5_move1.pth?runName=heavy_run_friction0-5_move1_2024-10-16_23-42-30-218923"
+            # "https://wandb.ai/tylerlum/cross_embodiment/groups/2024-10-17_crackerbox_fabric_friction_mass_inertia/files/runs/orient0_juno1_2024-10-16_23-45-43-871057/nn/orient0_juno1.pth?runName=orient0_juno1_2024-10-16_23-45-43-871057"
+            # "https://wandb.ai/tylerlum/cross_embodiment/groups/2024-10-21_crackerbox/files/runs/damp45_ws-19_2024-10-21_02-22-24-946771/nn/damp45_ws-19.pth?runName=damp45_ws-19_2024-10-21_02-22-24-946771"
+            # "https://wandb.ai/tylerlum/cross_embodiment/groups/2024-10-18_crackerbox/files/runs/friction0-5_move1_2024-10-18_01-20-15-137476/nn/friction0-5_move1.pth?runName=friction0-5_move1_2024-10-18_01-20-15-137476"
+            # "https://wandb.ai/tylerlum/cross_embodiment/groups/2024-10-21_crackerbox/files/runs/freq1_move2_2024-10-21_02-18-40-861441/nn/freq1_move2.pth?runName=freq1_move2_2024-10-21_02-18-40-861441"
+            # "https://wandb.ai/tylerlum/cross_embodiment/groups/2024-10-18_crackerbox/files/runs/noise0-05_move1_2024-10-18_01-20-15-137825/nn/noise0-05_move1.pth?runName=noise0-05_move1_2024-10-18_01-20-15-137825"
+            # "https://wandb.ai/tylerlum/cross_embodiment/groups/2024-10-21_crackerbox/files/runs/base_move2_2024-10-21_02-18-40-861433/nn/base_move2.pth?runName=base_move2_2024-10-21_02-18-40-861433"
+            # "https://wandb.ai/tylerlum/cross_embodiment/groups/2024-10-21_crackerbox/files/runs/coll-off_move1_2024-10-21_02-18-42-117793/nn/coll-off_move1.pth?runName=coll-off_move1_2024-10-21_02-18-42-117793"
+            # "https://wandb.ai/tylerlum/cross_embodiment/groups/2024-10-22_crackerbox_trajectory/files/runs/lift_damp45_move1_2024-10-22_00-20-06-579299/nn/lift_damp45_move1.pth?runName=lift_damp45_move1_2024-10-22_00-20-06-579299"
+            # "https://wandb.ai/tylerlum/cross_embodiment/groups/2024-10-22_crackerbox_trajectory/files/runs/lift_move2_2024-10-22_00-20-08-861728/nn/lift_move2.pth?runName=lift_move2_2024-10-22_00-20-08-861728"
+            # "https://wandb.ai/tylerlum/cross_embodiment/groups/2024-10-22_crackerbox_trajectory/files/runs/push_damp45_ws-16_2024-10-22_00-30-45-714566/nn/push_damp45_ws-16.pth?runName=push_damp45_ws-16_2024-10-22_00-30-45-714566"
+            # "https://wandb.ai/tylerlum/cross_embodiment/groups/2024-10-22_crackerbox_trajectory/files/runs/diagonal_push_damp45_move1_2024-10-22_00-20-06-579262/nn/diagonal_push_damp45_move1.pth?runName=diagonal_push_damp45_move1_2024-10-22_00-20-06-579262"
+            # "https://wandb.ai/tylerlum/cross_embodiment/groups/2024-10-23_crackerbox_trajectory_harder/files/runs/lift_base_move1_2024-10-23_03-23-20-279676/nn/lift_base_move1.pth?runName=lift_base_move1_2024-10-23_03-23-20-279676"
+            # "https://wandb.ai/tylerlum/cross_embodiment/groups/2024-10-23_crackerbox_trajectory_harder/files/runs/lift_friction0-5_freq1_move2_2024-10-23_03-35-15-483418/nn/lift_friction0-5_freq1_move2.pth?runName=lift_friction0-5_freq1_move2_2024-10-23_03-35-15-483418"
+            # "https://wandb.ai/tylerlum/cross_embodiment/groups/2024-10-23_crackerbox_trajectory_harder/files/runs/push_friction0-3_move3_2024-10-23_03-44-30-072131/nn/push_friction0-3_move3.pth?runName=push_friction0-3_move3_2024-10-23_03-44-30-072131"
+            # "https://wandb.ai/tylerlum/cross_embodiment/groups/2024-10-23_crackerbox_trajectory_harder/files/runs/lift_friction0-5_DRLarge_force0-1_noise0-02_move1_2024-10-23_03-32-30-289040/nn/lift_friction0-5_DRLarge_force0-1_noise0-02_move1.pth?runName=lift_friction0-5_DRLarge_force0-1_noise0-02_move1_2024-10-23_03-32-30-289040"
+            # "https://wandb.ai/tylerlum/cross_embodiment/groups/2024-10-23_crackerbox_trajectory_harder/files/runs/lift_friction0-5_move2_2024-10-23_03-35-31-266374/nn/lift_friction0-5_move2.pth?runName=lift_friction0-5_move2_2024-10-23_03-35-31-266374"
+            # "https://wandb.ai/tylerlum/cross_embodiment/groups/2024-10-23_crackerbox_trajectory_harder/files/runs/push_friction0-5_freq1_juno2_2024-10-23_03-41-46-838160/nn/push_friction0-5_freq1_juno2.pth?runName=push_friction0-5_freq1_juno2_2024-10-23_03-41-46-838160"
+            "https://wandb.ai/tylerlum/cross_embodiment/groups/2024-10-23_crackerbox_trajectory_harder/files/runs/push_friction0-5_DRLarge_force0-1_noise0-02_ws-16_2024-10-23_03-40-11-262111/nn/push_friction0-5_DRLarge_force0-1_noise0-02_ws-16.pth?runName=push_friction0-5_DRLarge_force0-1_noise0-02_ws-16_2024-10-23_03-40-11-262111"
         )
 
         # Create the RL player
@@ -137,6 +197,13 @@ class RLPolicyNode:
             checkpoint_path=self.checkpoint_path,
             device=self.device,
         )
+
+        # ROS rate
+        # self.rate_hz = 15
+        # self.rate_hz = 60
+        control_dt = self.player.cfg["task"]["env"]["controlFrequencyInv"] * self.player.cfg["task"]["sim"]["dt"]
+        self.rate_hz = 1.0 / control_dt
+        self.rate = rospy.Rate(self.rate_hz)
 
         # Define limits for palm and hand targets
         self.palm_mins = torch.tensor(
