@@ -166,7 +166,7 @@ class IiwaAllegroFabricPublisher:
             fabric_class = KukaAllegroPoseAllHandFabric
         else:
             raise ValueError(f"Invalid FABRIC_MODE = {FABRIC_MODE}")
-        self.fabric = KukaAllegroPoseFabric(
+        self.fabric = fabric_class(
             batch_size=self.num_envs,
             device=self.device,
             timestep=self.control_dt,
