@@ -2,12 +2,16 @@
 
 from pathlib import Path
 from typing import Literal
+import functools
 
 import numpy as np
 import rospy
 import torch
 from geometry_msgs.msg import Pose
-from isaacgymenvs.utils.cross_embodiment.camera_extrinsics import T_R_C
+from isaacgymenvs.utils.cross_embodiment.camera_extrinsics import (
+    ZED_CAMERA_T_R_C,
+    REALSENSE_CAMERA_T_R_C,
+)
 from isaacgymenvs.utils.cross_embodiment.vec_olivia_reference import (
     VecOliviaReferenceMotion,
 )
@@ -68,7 +72,7 @@ class GoalObjectPosePublisher:
             T_R_O[:3, :3] = R.from_quat(goal_object_quat_xyzw).as_matrix()
             T_R_O[:3, 3] = goal_object_pos
 
-            T_C_R = np.linalg.inv(T_R_C)
+            T_C_R = np.linalg.inv(self.T_R_C)
             T_C_O = T_C_R @ T_R_O
 
             self.T_C_O_list = [T_C_O]
@@ -157,6 +161,25 @@ class GoalObjectPosePublisher:
         while not rospy.is_shutdown():
             self.publish_pose()
             self.rate.sleep()
+
+    @property
+    @functools.lru_cache()
+    def T_R_C(self) -> np.ndarray:
+        # Check camera parameter
+        camera = rospy.get_param("/camera", None)
+        if camera is None:
+            DEFAULT_CAMERA = "zed"
+            rospy.logwarn(
+                f"No /camera parameter found, using default camera {DEFAULT_CAMERA}"
+            )
+            camera = DEFAULT_CAMERA
+        rospy.loginfo(f"Using camera: {camera}")
+        if camera == "zed":
+            return ZED_CAMERA_T_R_C
+        elif camera == "realsense":
+            return REALSENSE_CAMERA_T_R_C
+        else:
+            raise ValueError(f"Unknown camera: {camera}")
 
 
 if __name__ == "__main__":
