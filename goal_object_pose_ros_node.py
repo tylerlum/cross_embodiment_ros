@@ -157,8 +157,8 @@ class GoalObjectPosePublisher:
         self.current_index += 1
 
     def run(self):
-        rospy.loginfo("Publishing goal object poses at 60Hz to /goal_object_pose")
         while not rospy.is_shutdown():
+            rospy.loginfo("Publishing goal object poses at 60Hz to /goal_object_pose")
             self.publish_pose()
             self.rate.sleep()
 
