@@ -354,7 +354,9 @@ class VisualizationNode:
         assert isinstance(
             object_mesh_path, str
         ), f"object_mesh_path: {object_mesh_path}"
-        rospy.logerr(f"object_mesh_path: {object_mesh_path}")
+        rospy.loginfo("~" * 80)
+        rospy.loginfo(f"object_mesh_path: {object_mesh_path}")
+        rospy.loginfo("~" * 80 + "\n")
 
         goal_object_mesh_path = object_mesh_path
 
@@ -381,7 +383,7 @@ class VisualizationNode:
                     / f"{object_mesh_Path.stem}_simplified{object_mesh_Path.suffix}"
                 )
                 o3d.io.write_triangle_mesh(simplified_mesh_path, simplified_mesh)
-                rospy.logwarn(f"Saved simplified mesh to: {simplified_mesh_path}")
+                rospy.loginfo(f"Saved simplified mesh to: {simplified_mesh_path}")
 
                 object_mesh_path = simplified_mesh_path
                 goal_object_mesh_path = simplified_mesh_path
@@ -398,6 +400,7 @@ class VisualizationNode:
                     / f"{object_mesh_Path.stem}_simplified{object_mesh_Path.suffix}"
                 )
                 new_mesh.export(simplified_mesh_path)
+                rospy.loginfo(f"Saved simplified mesh to: {simplified_mesh_path}")
 
                 # object_mesh_path = simplified_mesh_path
                 goal_object_mesh_path = simplified_mesh_path
