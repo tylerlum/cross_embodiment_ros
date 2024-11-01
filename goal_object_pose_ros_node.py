@@ -24,14 +24,18 @@ class GoalObjectPosePublisher:
 
         self.current_index = 0
 
-        MODE: Literal["trajectory", "position"] = "position"
+        MODE: Literal["trajectory", "position"] = "trajectory"
         if MODE == "trajectory":
+            TRAJECTORY_INDEX = 8
+            # OBJECT_NAME = "snackbox"
+            OBJECT_NAME = "bluecup_tape_top"
+
             # Set up VecOliviaReferenceMotion
             TRAJECTORY_FOLDERPATH = Path(
-                "/juno/u/oliviayl/repos/cross_embodiment/FoundationPose/debug_archive/zed_raw/0"
+                f"/juno/u/oliviayl/repos/cross_embodiment/FoundationPose/debug_archive/{OBJECT_NAME}/{TRAJECTORY_INDEX}"
             )
             HAND_TRAJECTORY_FOLDERPATH = Path(
-                "/juno/u/oliviayl/repos/cross_embodiment/hamer/outputs4/0/"
+                f"/juno/u/oliviayl/repos/cross_embodiment/hamer/outputs/{OBJECT_NAME}/{TRAJECTORY_INDEX}"
             )
 
             self.data_hz = 30
@@ -57,7 +61,7 @@ class GoalObjectPosePublisher:
         elif MODE == "position":
             # goal_object_pos = np.array([0.4637, -0.2200, 0.5199])
             goal_object_pos = np.array([0.5735, -0.1633, 0.2038]) + np.array(
-                [0.0, 0.0, 0.3]
+                [0.0, -0.12, 0.35]
             )
             goal_object_quat_xyzw = np.array([0.0, 0.0, 0.0, 1.0])
             T_R_O = np.eye(4)
