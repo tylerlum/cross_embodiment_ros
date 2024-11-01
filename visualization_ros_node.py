@@ -832,6 +832,21 @@ class VisualizationNode:
 
     @property
     @functools.lru_cache()
+    def goal_camera(self) -> Literal["zed", "realsense"]:
+        # Check goal_camera parameter
+        goal_camera = rospy.get_param("/goal_camera", None)
+        if goal_camera is None:
+            DEFAULT_CAMERA = "zed"
+            rospy.logwarn(
+                f"No /goal_camera parameter found, using default camera {DEFAULT_CAMERA}"
+            )
+            goal_camera = DEFAULT_CAMERA
+        rospy.loginfo(f"Using goal_camera: {goal_camera}")
+        assert goal_camera in ["zed", "realsense"], f"goal_camera: {goal_camera}"
+        return goal_camera
+
+    @property
+    @functools.lru_cache()
     def T_R_C(self) -> np.ndarray:
         if self.camera == "zed":
             return ZED_CAMERA_T_R_C
@@ -844,20 +859,12 @@ class VisualizationNode:
     @functools.lru_cache()
     def goal_T_R_C(self) -> np.ndarray:
         # Check goal_camera parameter
-        goal_camera = rospy.get_param("/goal_camera", None)
-        if goal_camera is None:
-            DEFAULT_CAMERA = "zed"
-            rospy.logwarn(
-                f"No /goal_camera parameter found, using default camera {DEFAULT_CAMERA}"
-            )
-            goal_camera = DEFAULT_CAMERA
-        rospy.loginfo(f"Using goal_camera: {goal_camera}")
-        if goal_camera == "zed":
+        if self.goal_camera == "zed":
             return ZED_CAMERA_T_R_C
-        elif goal_camera == "realsense":
+        elif self.goal_camera == "realsense":
             return REALSENSE_CAMERA_T_R_C
         else:
-            raise ValueError(f"Unknown goal_camera: {goal_camera}")
+            raise ValueError(f"Unknown goal_camera: {self.goal_camera}")
 
     @property
     @functools.lru_cache()

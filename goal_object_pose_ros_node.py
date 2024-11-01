@@ -72,7 +72,7 @@ class GoalObjectPosePublisher:
             T_R_O[:3, :3] = R.from_quat(goal_object_quat_xyzw).as_matrix()
             T_R_O[:3, 3] = goal_object_pos
 
-            T_C_R = np.linalg.inv(self.T_R_C)
+            T_C_R = np.linalg.inv(self.goal_T_R_C)
             T_C_O = T_C_R @ T_R_O
 
             self.T_C_O_list = [T_C_O]
@@ -164,9 +164,9 @@ class GoalObjectPosePublisher:
 
     @property
     @functools.lru_cache()
-    def T_R_C(self) -> np.ndarray:
+    def goal_T_R_C(self) -> np.ndarray:
         # Check camera parameter
-        camera = rospy.get_param("/camera", None)
+        camera = rospy.get_param("/goal_camera", None)
         if camera is None:
             DEFAULT_CAMERA = "zed"
             rospy.logwarn(

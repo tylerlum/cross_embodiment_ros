@@ -710,7 +710,7 @@ class RLPolicyNode:
 
     @property
     @functools.lru_cache()
-    def T_R_C(self) -> np.ndarray:
+    def camera(self) -> Literal["zed", "realsense"]:
         # Check camera parameter
         camera = rospy.get_param("/camera", None)
         if camera is None:
@@ -720,16 +720,12 @@ class RLPolicyNode:
             )
             camera = DEFAULT_CAMERA
         rospy.loginfo(f"Using camera: {camera}")
-        if camera == "zed":
-            return ZED_CAMERA_T_R_C
-        elif camera == "realsense":
-            return REALSENSE_CAMERA_T_R_C
-        else:
-            raise ValueError(f"Unknown camera: {camera}")
+        assert camera in ["zed", "realsense"], f"camera: {camera}"
+        return camera
 
     @property
     @functools.lru_cache()
-    def goal_T_R_C(self) -> np.ndarray:
+    def goal_camera(self) -> Literal["zed", "realsense"]:
         # Check goal_camera parameter
         goal_camera = rospy.get_param("/goal_camera", None)
         if goal_camera is None:
@@ -739,12 +735,28 @@ class RLPolicyNode:
             )
             goal_camera = DEFAULT_CAMERA
         rospy.loginfo(f"Using goal_camera: {goal_camera}")
-        if goal_camera == "zed":
+        assert goal_camera in ["zed", "realsense"], f"goal_camera: {goal_camera}"
+        return goal_camera
+
+    @property
+    @functools.lru_cache()
+    def T_R_C(self) -> np.ndarray:
+        if self.camera == "zed":
             return ZED_CAMERA_T_R_C
-        elif goal_camera == "realsense":
+        elif self.camera == "realsense":
             return REALSENSE_CAMERA_T_R_C
         else:
-            raise ValueError(f"Unknown goal_camera: {goal_camera}")
+            raise ValueError(f"Unknown camera: {self.camera}")
+
+    @property
+    @functools.lru_cache()
+    def goal_T_R_C(self) -> np.ndarray:
+        if self.goal_camera == "zed":
+            return ZED_CAMERA_T_R_C
+        elif self.goal_camera == "realsense":
+            return REALSENSE_CAMERA_T_R_C
+        else:
+            raise ValueError(f"Unknown goal_camera: {self.goal_camera}")
 
 
 if __name__ == "__main__":
