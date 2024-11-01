@@ -3,13 +3,17 @@
 import copy
 from pathlib import Path
 from typing import Optional, Tuple, Literal
+import functools
 
 import numpy as np
 import rospy
 import torch
 from geometry_msgs.msg import Pose
 from isaacgym.torch_utils import to_torch
-from isaacgymenvs.utils.cross_embodiment.camera_extrinsics import T_R_C
+from isaacgymenvs.utils.cross_embodiment.camera_extrinsics import (
+    ZED_CAMERA_T_R_C,
+    REALSENSE_CAMERA_T_R_C,
+)
 from isaacgymenvs.utils.cross_embodiment.constants import (
     NUM_XYZ,
 )
@@ -179,36 +183,27 @@ class RLPolicyNode:
             # "https://wandb.ai/tylerlum/cross_embodiment/groups/2024-10-25_crackerbox_new_trajectory/files/runs/8_friction0-3_move1_2024-10-25_01-59-45-381040/config_resolved.yaml?runName=8_friction0-3_move1_2024-10-25_01-59-45-381040"
             # "https://wandb.ai/tylerlum/cross_embodiment/groups/2024-10-25_crackerbox_new_trajectory/files/runs/11_base_juno2_2024-10-25_02-00-20-181080/config_resolved.yaml?runName=11_base_juno2_2024-10-25_02-00-20-181080"
             # "https://wandb.ai/tylerlum/cross_embodiment/groups/2024-10-25_crackerbox_new_trajectory/files/runs/9_friction0-5_force0-1_noise0-02_juno1_2024-10-25_02-02-47-479939/config_resolved.yaml?runName=9_friction0-5_force0-1_noise0-02_juno1_2024-10-25_02-02-47-479939"
-
             # 2024-10-29
             # "https://wandb.ai/tylerlum/cross_embodiment/groups/2024-10-25_crackerbox_new_trajectory/files/runs/11_base_juno2_2024-10-25_02-00-20-181080/config_resolved.yaml?runName=11_base_juno2_2024-10-25_02-00-20-181080"
             # "https://wandb.ai/tylerlum/cross_embodiment/groups/2024-10-25_crackerbox_new_trajectory/files/runs/11_friction0-5_move2_2024-10-25_02-00-00-650467/config_resolved.yaml?runName=11_friction0-5_move2_2024-10-25_02-00-00-650467"
             # "https://wandb.ai/tylerlum/cross_embodiment/groups/2024-10-25_crackerbox_new_trajectory/files/runs/11_friction0-5_force0-1_noise0-02_move2_2024-10-25_02-00-00-650319/config_resolved.yaml?runName=11_friction0-5_force0-1_noise0-02_move2_2024-10-25_02-00-00-650319"
-
             # "https://wandb.ai/tylerlum/cross_embodiment/groups/2024-10-25_crackerbox_new_trajectory/files/runs/9_base_ws-19_2024-10-25_02-03-28-531680/config_resolved.yaml?runName=9_base_ws-19_2024-10-25_02-03-28-531680"
             # "https://wandb.ai/tylerlum/cross_embodiment/groups/2024-10-25_crackerbox_new_trajectory/files/runs/9_friction0-5_juno1_2024-10-25_02-02-31-460085/config_resolved.yaml?runName=9_friction0-5_juno1_2024-10-25_02-02-31-460085"
             # "https://wandb.ai/tylerlum/cross_embodiment/groups/2024-10-25_crackerbox_new_trajectory/files/runs/9_friction0-5_force0-1_noise0-02_juno1_2024-10-25_02-02-47-479939/config_resolved.yaml?runName=9_friction0-5_force0-1_noise0-02_juno1_2024-10-25_02-02-47-479939"
-
             # "https://wandb.ai/tylerlum/cross_embodiment/groups/2024-10-25_crackerbox_new_trajectory/files/runs/8_base_move1_2024-10-25_01-59-45-381051/config_resolved.yaml?runName=8_base_move1_2024-10-25_01-59-45-381051"
             # "https://wandb.ai/tylerlum/cross_embodiment/groups/2024-10-25_crackerbox_new_trajectory/files/runs/8_friction0-5_juno2_2024-10-25_02-00-11-785544/config_resolved.yaml?runName=8_friction0-5_juno2_2024-10-25_02-00-11-785544"
             # "https://wandb.ai/tylerlum/cross_embodiment/groups/2024-10-25_crackerbox_new_trajectory/files/runs/8_friction0-5_force0-1_noise0-02_move1_2024-10-25_01-59-45-381063/config_resolved.yaml?runName=8_friction0-5_force0-1_noise0-02_move1_2024-10-25_01-59-45-381063"
-
             # "https://wandb.ai/tylerlum/cross_embodiment/groups/2024-10-28_crackerbox_hard_trajectory/files/runs/7_base_move2_2024-10-28_01-06-50-382887/config_resolved.yaml?runName=7_base_move2_2024-10-28_01-06-50-382887"
             # "https://wandb.ai/tylerlum/cross_embodiment/groups/2024-10-28_crackerbox_hard_trajectory/files/runs/7_friction0-5_move2_2024-10-28_01-06-50-383023/config_resolved.yaml?runName=7_friction0-5_move2_2024-10-28_01-06-50-383023"
-
             # "https://wandb.ai/tylerlum/cross_embodiment/groups/2024-10-28_crackerbox_hard_trajectory/files/runs/6_base_move1_2024-10-28_01-06-14-675800/config_resolved.yaml?runName=6_base_move1_2024-10-28_01-06-14-675800"
             # "https://wandb.ai/tylerlum/cross_embodiment/groups/2024-10-28_crackerbox_hard_trajectory/files/runs/6_friction0-5_force0-1_noise0-02_juno2_2024-10-28_01-10-01-351943/config_resolved.yaml?runName=6_friction0-5_force0-1_noise0-02_juno2_2024-10-28_01-10-01-351943"
-
             # "https://wandb.ai/tylerlum/cross_embodiment/groups/2024-10-28_crackerbox_hard_trajectory/files/runs/4_base_move1_2024-10-28_01-05-18-652438/config_resolved.yaml?runName=4_base_move1_2024-10-28_01-05-18-652438"
             # "https://wandb.ai/tylerlum/cross_embodiment/groups/2024-10-28_crackerbox_hard_trajectory/files/runs/4_friction0-5_move1_2024-10-28_01-05-18-652390/config_resolved.yaml?runName=4_friction0-5_move1_2024-10-28_01-05-18-652390"
             # "https://wandb.ai/tylerlum/cross_embodiment/groups/2024-10-28_crackerbox_hard_trajectory/files/runs/4_friction0-5_force0-1_noise0-02_juno2_2024-10-28_01-10-01-351869/config_resolved.yaml?runName=4_friction0-5_force0-1_noise0-02_juno2_2024-10-28_01-10-01-351869"
-
             # 2024-10-31
             # "https://wandb.ai/tylerlum/cross_embodiment/groups/2024-10-31_cup_trajectory/files/runs/0_base_move1_2024-10-31_01-47-27-815811/config_resolved.yaml?runName=0_base_move1_2024-10-31_01-47-27-815811"
-
             # "https://wandb.ai/tylerlum/cross_embodiment/groups/2024-10-31_cup_trajectory/files/runs/8_base_juno2_2024-10-31_01-49-07-406102/config_resolved.yaml?runName=8_base_juno2_2024-10-31_01-49-07-406102"
             "https://wandb.ai/tylerlum/cross_embodiment/groups/2024-10-31_cup_trajectory/files/runs/8_friction0-5_ws-19_2024-10-31_01-58-35-276051/config_resolved.yaml?runName=8_friction0-5_ws-19_2024-10-31_01-58-35-276051"
-
             # "https://wandb.ai/tylerlum/cross_embodiment/groups/2024-10-31_cup_trajectory/files/runs/7_base_juno2_2024-10-31_01-49-04-386494/config_resolved.yaml?runName=7_base_juno2_2024-10-31_01-49-04-386494"
             # "https://wandb.ai/tylerlum/cross_embodiment/groups/2024-10-31_cup_trajectory/files/runs/8_friction0-3-5-8_ws-16_2024-10-31_02-00-48-336319/config_resolved.yaml?runName=8_friction0-3-5-8_ws-16_2024-10-31_02-00-48-336319"
             # "https://wandb.ai/tylerlum/cross_embodiment/groups/2024-10-31_cup_trajectory/files/runs/5_base_juno2_2024-10-31_01-49-04-386691/config_resolved.yaml?runName=5_base_juno2_2024-10-31_01-49-04-386691"
@@ -255,36 +250,27 @@ class RLPolicyNode:
             # "https://wandb.ai/tylerlum/cross_embodiment/groups/2024-10-25_crackerbox_new_trajectory/files/runs/8_friction0-3_move1_2024-10-25_01-59-45-381040/nn/8_friction0-3_move1.pth?runName=8_friction0-3_move1_2024-10-25_01-59-45-381040"
             # "https://wandb.ai/tylerlum/cross_embodiment/groups/2024-10-25_crackerbox_new_trajectory/files/runs/11_base_juno2_2024-10-25_02-00-20-181080/nn/11_base_juno2.pth?runName=11_base_juno2_2024-10-25_02-00-20-181080"
             # "https://wandb.ai/tylerlum/cross_embodiment/groups/2024-10-25_crackerbox_new_trajectory/files/runs/9_friction0-5_force0-1_noise0-02_juno1_2024-10-25_02-02-47-479939/nn/9_friction0-5_force0-1_noise0-02_juno1.pth?runName=9_friction0-5_force0-1_noise0-02_juno1_2024-10-25_02-02-47-479939"
-
             # 2024-10-29
             # "https://wandb.ai/tylerlum/cross_embodiment/groups/2024-10-25_crackerbox_new_trajectory/files/runs/11_base_juno2_2024-10-25_02-00-20-181080/nn/11_base_juno2.pth?runName=11_base_juno2_2024-10-25_02-00-20-181080"
             # "https://wandb.ai/tylerlum/cross_embodiment/groups/2024-10-25_crackerbox_new_trajectory/files/runs/11_friction0-5_move2_2024-10-25_02-00-00-650467/nn/11_friction0-5_move2.pth?runName=11_friction0-5_move2_2024-10-25_02-00-00-650467"
             # "https://wandb.ai/tylerlum/cross_embodiment/groups/2024-10-25_crackerbox_new_trajectory/files/runs/11_friction0-5_force0-1_noise0-02_move2_2024-10-25_02-00-00-650319/nn/11_friction0-5_force0-1_noise0-02_move2.pth?runName=11_friction0-5_force0-1_noise0-02_move2_2024-10-25_02-00-00-650319"
-
             # "https://wandb.ai/tylerlum/cross_embodiment/groups/2024-10-25_crackerbox_new_trajectory/files/runs/9_base_ws-19_2024-10-25_02-03-28-531680/nn/9_base_ws-19.pth?runName=9_base_ws-19_2024-10-25_02-03-28-531680"
             # "https://wandb.ai/tylerlum/cross_embodiment/groups/2024-10-25_crackerbox_new_trajectory/files/runs/9_friction0-5_juno1_2024-10-25_02-02-31-460085/nn/9_friction0-5_juno1.pth?runName=9_friction0-5_juno1_2024-10-25_02-02-31-460085"
             # "https://wandb.ai/tylerlum/cross_embodiment/groups/2024-10-25_crackerbox_new_trajectory/files/runs/9_friction0-5_force0-1_noise0-02_juno1_2024-10-25_02-02-47-479939/nn/9_friction0-5_force0-1_noise0-02_juno1.pth?runName=9_friction0-5_force0-1_noise0-02_juno1_2024-10-25_02-02-47-479939"
-
             # "https://wandb.ai/tylerlum/cross_embodiment/groups/2024-10-25_crackerbox_new_trajectory/files/runs/8_base_move1_2024-10-25_01-59-45-381051/nn/8_base_move1.pth?runName=8_base_move1_2024-10-25_01-59-45-381051"
             # "https://wandb.ai/tylerlum/cross_embodiment/groups/2024-10-25_crackerbox_new_trajectory/files/runs/8_friction0-5_juno2_2024-10-25_02-00-11-785544/nn/8_friction0-5_juno2.pth?runName=8_friction0-5_juno2_2024-10-25_02-00-11-785544"
             # "https://wandb.ai/tylerlum/cross_embodiment/groups/2024-10-25_crackerbox_new_trajectory/files/runs/8_friction0-5_force0-1_noise0-02_move1_2024-10-25_01-59-45-381063/nn/8_friction0-5_force0-1_noise0-02_move1.pth?runName=8_friction0-5_force0-1_noise0-02_move1_2024-10-25_01-59-45-381063"
-
             # "https://wandb.ai/tylerlum/cross_embodiment/groups/2024-10-28_crackerbox_hard_trajectory/files/runs/7_base_move2_2024-10-28_01-06-50-382887/nn/7_base_move2.pth?runName=7_base_move2_2024-10-28_01-06-50-382887"
             # "https://wandb.ai/tylerlum/cross_embodiment/groups/2024-10-28_crackerbox_hard_trajectory/files/runs/7_friction0-5_move2_2024-10-28_01-06-50-383023/nn/7_friction0-5_move2.pth?runName=7_friction0-5_move2_2024-10-28_01-06-50-383023"
-
             # "https://wandb.ai/tylerlum/cross_embodiment/groups/2024-10-28_crackerbox_hard_trajectory/files/runs/6_base_move1_2024-10-28_01-06-14-675800/nn/6_base_move1.pth?runName=6_base_move1_2024-10-28_01-06-14-675800"
             # "https://wandb.ai/tylerlum/cross_embodiment/groups/2024-10-28_crackerbox_hard_trajectory/files/runs/6_friction0-5_force0-1_noise0-02_juno2_2024-10-28_01-10-01-351943/nn/6_friction0-5_force0-1_noise0-02_juno2.pth?runName=6_friction0-5_force0-1_noise0-02_juno2_2024-10-28_01-10-01-351943"
-
             # "https://wandb.ai/tylerlum/cross_embodiment/groups/2024-10-28_crackerbox_hard_trajectory/files/runs/4_base_move1_2024-10-28_01-05-18-652438/nn/4_base_move1.pth?runName=4_base_move1_2024-10-28_01-05-18-652438"
             # "https://wandb.ai/tylerlum/cross_embodiment/groups/2024-10-28_crackerbox_hard_trajectory/files/runs/4_friction0-5_move1_2024-10-28_01-05-18-652390/nn/4_friction0-5_move1.pth?runName=4_friction0-5_move1_2024-10-28_01-05-18-652390"
             # "https://wandb.ai/tylerlum/cross_embodiment/groups/2024-10-28_crackerbox_hard_trajectory/files/runs/4_friction0-5_force0-1_noise0-02_juno2_2024-10-28_01-10-01-351869/nn/4_friction0-5_force0-1_noise0-02_juno2.pth?runName=4_friction0-5_force0-1_noise0-02_juno2_2024-10-28_01-10-01-351869"
-
             # 2024-10-31
             # "https://wandb.ai/tylerlum/cross_embodiment/groups/2024-10-31_cup_trajectory/files/runs/0_base_move1_2024-10-31_01-47-27-815811/nn/0_base_move1.pth?runName=0_base_move1_2024-10-31_01-47-27-815811"
-
             # "https://wandb.ai/tylerlum/cross_embodiment/groups/2024-10-31_cup_trajectory/files/runs/8_base_juno2_2024-10-31_01-49-07-406102/nn/8_base_juno2.pth?runName=8_base_juno2_2024-10-31_01-49-07-406102"
             "https://wandb.ai/tylerlum/cross_embodiment/groups/2024-10-31_cup_trajectory/files/runs/8_friction0-5_ws-19_2024-10-31_01-58-35-276051/nn/8_friction0-5_ws-19.pth?runName=8_friction0-5_ws-19_2024-10-31_01-58-35-276051"
-
             # "https://wandb.ai/tylerlum/cross_embodiment/groups/2024-10-31_cup_trajectory/files/runs/7_base_juno2_2024-10-31_01-49-04-386494/nn/7_base_juno2.pth?runName=7_base_juno2_2024-10-31_01-49-04-386494"
             # "https://wandb.ai/tylerlum/cross_embodiment/groups/2024-10-31_cup_trajectory/files/runs/8_friction0-3-5-8_ws-16_2024-10-31_02-00-48-336319/nn/8_friction0-3-5-8_ws-16.pth?runName=8_friction0-3-5-8_ws-16_2024-10-31_02-00-48-336319"
             # "https://wandb.ai/tylerlum/cross_embodiment/groups/2024-10-31_cup_trajectory/files/runs/5_base_juno2_2024-10-31_01-49-04-386691/nn/5_base_juno2.pth?runName=5_base_juno2_2024-10-31_01-49-04-386691"
@@ -302,7 +288,10 @@ class RLPolicyNode:
         # ROS rate
         # self.rate_hz = 15
         # self.rate_hz = 60
-        control_dt = self.player.cfg["task"]["env"]["controlFrequencyInv"] * self.player.cfg["task"]["sim"]["dt"]
+        control_dt = (
+            self.player.cfg["task"]["env"]["controlFrequencyInv"]
+            * self.player.cfg["task"]["sim"]["dt"]
+        )
         self.rate_hz = 1.0 / control_dt
         self.rate = rospy.Rate(self.rate_hz)
 
@@ -314,8 +303,12 @@ class RLPolicyNode:
             [1.0, 0.7, 1.0, 3.1416, 3.1416, 3.1416], device=self.device
         )
 
-        hand_action_space = self.player.cfg["task"]["env"]["custom"]["FABRIC_HAND_ACTION_SPACE"]
-        assert hand_action_space == FABRIC_MODE, f"Invalid hand action space: {hand_action_space} != {FABRIC_MODE}"
+        hand_action_space = self.player.cfg["task"]["env"]["custom"][
+            "FABRIC_HAND_ACTION_SPACE"
+        ]
+        assert (
+            hand_action_space == FABRIC_MODE
+        ), f"Invalid hand action space: {hand_action_space} != {FABRIC_MODE}"
         if FABRIC_MODE == "PCA":
             self.hand_mins = torch.tensor(
                 [0.2475, -0.3286, -0.7238, -0.0192, -0.5532], device=self.device
@@ -325,12 +318,46 @@ class RLPolicyNode:
             )
         elif FABRIC_MODE == "ALL":
             self.hand_mins = torch.tensor(
-                [-0.4700, -0.1960, -0.1740, -0.2270, -0.4700, -0.1960, -0.1740, -0.2270, -0.4700, -0.1960, -0.1740, -0.2270, 0.2630, -0.1050, -0.1890, -0.1620],
-                device=self.device
+                [
+                    -0.4700,
+                    -0.1960,
+                    -0.1740,
+                    -0.2270,
+                    -0.4700,
+                    -0.1960,
+                    -0.1740,
+                    -0.2270,
+                    -0.4700,
+                    -0.1960,
+                    -0.1740,
+                    -0.2270,
+                    0.2630,
+                    -0.1050,
+                    -0.1890,
+                    -0.1620,
+                ],
+                device=self.device,
             )
             self.hand_maxs = torch.tensor(
-                [0.4700, 1.6100, 1.7090, 1.6180, 0.4700, 1.6100, 1.7090, 1.6180, 0.4700, 1.6100, 1.7090, 1.6180, 1.3960, 1.1630, 1.6440, 1.7190],
-                device=self.device
+                [
+                    0.4700,
+                    1.6100,
+                    1.7090,
+                    1.6180,
+                    0.4700,
+                    1.6100,
+                    1.7090,
+                    1.6180,
+                    0.4700,
+                    1.6100,
+                    1.7090,
+                    1.6180,
+                    1.3960,
+                    1.1630,
+                    1.6440,
+                    1.7190,
+                ],
+                device=self.device,
             )
         else:
             raise ValueError(f"Invalid FABRIC_MODE = {FABRIC_MODE}")
@@ -410,16 +437,16 @@ class RLPolicyNode:
         self.prev_prev_object_pose_msg = self.prev_object_pose_msg
         self.prev_object_pose_msg = object_pose_msg
 
-        T_R_O = T_R_C @ T_C_O
+        T_R_O = self.T_R_C @ T_C_O
         object_position_R, object_quat_xyzw_R = T_to_pos_quat_xyzw(T_R_O)
 
-        T_R_G = T_R_C @ T_C_G
+        T_R_G = self.T_R_C @ T_C_G
         goal_object_pos_R, goal_object_quat_xyzw_R = T_to_pos_quat_xyzw(T_R_G)
 
-        T_R_O_prev = T_R_C @ T_C_O_prev
+        T_R_O_prev = self.T_R_C @ T_C_O_prev
         object_position_R_prev, object_quat_xyzw_R_prev = T_to_pos_quat_xyzw(T_R_O_prev)
 
-        T_R_O_prev_prev = T_R_C @ T_C_O_prev_prev
+        T_R_O_prev_prev = self.T_R_C @ T_C_O_prev_prev
         object_position_R_prev_prev, object_quat_xyzw_R_prev_prev = T_to_pos_quat_xyzw(
             T_R_O_prev_prev
         )
@@ -619,7 +646,11 @@ class RLPolicyNode:
 
         hand_msg = Float64MultiArray()
         hand_msg.layout = MultiArrayLayout(
-            dim=[MultiArrayDimension(label="hand_target", size=num_hand_actions, stride=num_hand_actions)],
+            dim=[
+                MultiArrayDimension(
+                    label="hand_target", size=num_hand_actions, stride=num_hand_actions
+                )
+            ],
             data_offset=0,
         )
         hand_msg.data = hand_target.cpu().numpy().flatten().tolist()
@@ -676,6 +707,25 @@ class RLPolicyNode:
                     node_name=rospy.get_name(),
                 )
             )
+
+    @property
+    @functools.lru_cache()
+    def T_R_C(self) -> np.ndarray:
+        # Check camera parameter
+        camera = rospy.get_param("/camera", None)
+        if camera is None:
+            DEFAULT_CAMERA = "zed"
+            rospy.logwarn(
+                f"No /camera parameter found, using default camera {DEFAULT_CAMERA}"
+            )
+            camera = DEFAULT_CAMERA
+        rospy.loginfo(f"Using camera: {camera}")
+        if camera == "zed":
+            return ZED_CAMERA_T_R_C
+        elif camera == "realsense":
+            return REALSENSE_CAMERA_T_R_C
+        else:
+            raise ValueError(f"Unknown camera: {camera}")
 
 
 if __name__ == "__main__":
