@@ -440,7 +440,7 @@ class RLPolicyNode:
         T_R_O = self.T_R_C @ T_C_O
         object_position_R, object_quat_xyzw_R = T_to_pos_quat_xyzw(T_R_O)
 
-        T_R_G = self.T_R_C @ T_C_G
+        T_R_G = self.goal_T_R_C @ T_C_G
         goal_object_pos_R, goal_object_quat_xyzw_R = T_to_pos_quat_xyzw(T_R_G)
 
         T_R_O_prev = self.T_R_C @ T_C_O_prev
@@ -726,6 +726,25 @@ class RLPolicyNode:
             return REALSENSE_CAMERA_T_R_C
         else:
             raise ValueError(f"Unknown camera: {camera}")
+
+    @property
+    @functools.lru_cache()
+    def goal_T_R_C(self) -> np.ndarray:
+        # Check goal_camera parameter
+        goal_camera = rospy.get_param("/goal_camera", None)
+        if goal_camera is None:
+            DEFAULT_CAMERA = "zed"
+            rospy.logwarn(
+                f"No /goal_camera parameter found, using default camera {DEFAULT_CAMERA}"
+            )
+            goal_camera = DEFAULT_CAMERA
+        rospy.loginfo(f"Using goal_camera: {goal_camera}")
+        if goal_camera == "zed":
+            return ZED_CAMERA_T_R_C
+        elif goal_camera == "realsense":
+            return REALSENSE_CAMERA_T_R_C
+        else:
+            raise ValueError(f"Unknown goal_camera: {goal_camera}")
 
 
 if __name__ == "__main__":

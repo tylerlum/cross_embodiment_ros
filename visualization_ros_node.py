@@ -843,9 +843,21 @@ class VisualizationNode:
     @property
     @functools.lru_cache()
     def goal_T_R_C(self) -> np.ndarray:
-        # HACK: Currently assume that the goal is given in zed frame, which may not be the same as
-        #       the camera frame used at runtime
-        return ZED_CAMERA_T_R_C
+        # Check goal_camera parameter
+        goal_camera = rospy.get_param("/goal_camera", None)
+        if goal_camera is None:
+            DEFAULT_CAMERA = "zed"
+            rospy.logwarn(
+                f"No /goal_camera parameter found, using default camera {DEFAULT_CAMERA}"
+            )
+            goal_camera = DEFAULT_CAMERA
+        rospy.loginfo(f"Using goal_camera: {goal_camera}")
+        if goal_camera == "zed":
+            return ZED_CAMERA_T_R_C
+        elif goal_camera == "realsense":
+            return REALSENSE_CAMERA_T_R_C
+        else:
+            raise ValueError(f"Unknown goal_camera: {goal_camera}")
 
     @property
     @functools.lru_cache()
