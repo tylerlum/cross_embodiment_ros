@@ -1,9 +1,11 @@
 #!/usr/bin/env python
 
 import faulthandler
+
 faulthandler.enable()
 
 import struct
+import functools
 import time
 from pathlib import Path
 from typing import Literal, Optional, Tuple
@@ -14,7 +16,12 @@ import rospy
 import sensor_msgs.point_cloud2 as pc2
 import trimesh
 from geometry_msgs.msg import Pose
-from isaacgymenvs.utils.cross_embodiment.camera_extrinsics import T_R_C, T_R_C2
+from isaacgymenvs.utils.cross_embodiment.camera_extrinsics import (
+    ZED_CAMERA_T_R_C,
+    ZED_CAMERA_T_R_C2,
+    REALSENSE_CAMERA_T_R_C,
+    REALSENSE_CAMERA_T_R_C2,
+)
 from scipy.spatial.transform import Rotation as R
 from sensor_msgs.msg import JointState, PointCloud2
 from std_msgs.msg import Float64MultiArray
@@ -163,6 +170,7 @@ def transform_points(T: np.ndarray, points: np.ndarray) -> np.ndarray:
 
 def draw_colored_point_cloud(
     point_cloud_and_colors: np.ndarray,
+    T_R_C2: np.ndarray,
     point_size: int = 5,
 ):
     n_pts = point_cloud_and_colors.shape[0]
@@ -306,8 +314,8 @@ class VisualizationNode:
         LOAD_SCENE_MESH = True
         if LOAD_SCENE_MESH:
             scene_urdf_path = Path(
-                    "/juno/u/tylerlum/github_repos/bidexhands_isaacgymenvs/assets/urdf/scene_mesh/model.urdf"
-                )
+                "/juno/u/tylerlum/github_repos/bidexhands_isaacgymenvs/assets/urdf/scene_mesh/model.urdf"
+            )
             T = np.linalg.inv(
                 np.array(
                     [
@@ -336,7 +344,12 @@ class VisualizationNode:
             x, y, z = T[:3, 3]
             qx, qy, qz, qw = R.from_matrix(T[:3, :3]).as_quat()
 
-            _scene_id = p.loadURDF(str(scene_urdf_path), useFixedBase=True, basePosition=[x, y, z], baseOrientation=[qx, qy, qz, qw])
+            _scene_id = p.loadURDF(
+                str(scene_urdf_path),
+                useFixedBase=True,
+                basePosition=[x, y, z],
+                baseOrientation=[qx, qy, qz, qw],
+            )
 
         # Load the object mesh
         FAR_AWAY_OBJECT_POSITION = np.ones(3)
@@ -472,13 +485,13 @@ class VisualizationNode:
         CAMERA_LINES_TO_DRAW: Literal["C", "C2"] = "C"
         if CAMERA_LINES_TO_DRAW == "C":
             self.camera_lines = visualize_transform(
-                xyz=T_R_C[:3, 3],
-                rotation_matrix=T_R_C[:3, :3],
+                xyz=self.T_R_C[:3, 3],
+                rotation_matrix=self.T_R_C[:3, :3],
             )
         elif CAMERA_LINES_TO_DRAW == "C2":
             self.camera_lines = visualize_transform(
-                xyz=T_R_C2[:3, 3],
-                rotation_matrix=T_R_C2[:3, :3],
+                xyz=self.T_R_C2[:3, 3],
+                rotation_matrix=self.T_R_C2[:3, :3],
             )
         else:
             raise ValueError(f"Invalid CAMERA_LINES_TO_DRAW: {CAMERA_LINES_TO_DRAW}")
@@ -718,7 +731,7 @@ class VisualizationNode:
         # Object pose is in camera frame = C frame
         # We want it in world frame = robot frame = R frame
         T_C_O = object_pose
-        T_R_O = T_R_C @ T_C_O
+        T_R_O = self.T_R_C @ T_C_O
         rospy.loginfo(f"T_R_O = {T_R_O}")
         object_pos = T_R_O[:3, 3]
         object_quat_xyzw = R.from_matrix(T_R_O[:3, :3]).as_quat()
@@ -728,7 +741,7 @@ class VisualizationNode:
         # Goal object pose is in camera frame = C frame
         # We want it in world frame = robot frame = R frame
         T_C_G = goal_object_pose
-        T_R_G = T_R_C @ T_C_G
+        T_R_G = self.goal_T_R_C @ T_C_G
         goal_object_pos = T_R_G[:3, 3]
         goal_object_quat_xyzw = R.from_matrix(T_R_G[:3, :3]).as_quat()
         p.resetBasePositionAndOrientation(
@@ -741,6 +754,7 @@ class VisualizationNode:
             if self.point_cloud_and_colors is not None:
                 draw_colored_point_cloud(
                     point_cloud_and_colors=self.point_cloud_and_colors,
+                    T_R_C2=T_R_C2,
                 )
             else:
                 rospy.logwarn("point_cloud_and_colors is None")
@@ -800,6 +814,48 @@ class VisualizationNode:
 
         # Disconnect from PyBullet when shutting down
         p.disconnect()
+
+    @property
+    @functools.lru_cache()
+    def camera(self) -> Literal["zed", "realsense"]:
+        # Check camera parameter
+        camera = rospy.get_param("/camera", None)
+        if camera is None:
+            DEFAULT_CAMERA = "zed"
+            rospy.logwarn(
+                f"No /camera parameter found, using default camera {DEFAULT_CAMERA}"
+            )
+            camera = DEFAULT_CAMERA
+        rospy.loginfo(f"Using camera: {camera}")
+        assert camera in ["zed", "realsense"], f"camera: {camera}"
+        return camera
+
+    @property
+    @functools.lru_cache()
+    def T_R_C(self) -> np.ndarray:
+        if self.camera == "zed":
+            return ZED_CAMERA_T_R_C
+        elif self.camera == "realsense":
+            return REALSENSE_CAMERA_T_R_C
+        else:
+            raise ValueError(f"Unknown camera: {self.camera}")
+
+    @property
+    @functools.lru_cache()
+    def goal_T_R_C(self) -> np.ndarray:
+        # HACK: Currently assume that the goal is given in zed frame, which may not be the same as
+        #       the camera frame used at runtime
+        return ZED_CAMERA_T_R_C
+
+    @property
+    @functools.lru_cache()
+    def T_R_C2(self) -> np.ndarray:
+        if self.camera == "zed":
+            return ZED_CAMERA_T_R_C2
+        elif self.camera == "realsense":
+            return REALSENSE_CAMERA_T_R_C2
+        else:
+            raise ValueError(f"Unknown camera: {self.camera}")
 
 
 if __name__ == "__main__":
