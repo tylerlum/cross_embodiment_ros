@@ -754,7 +754,7 @@ class VisualizationNode:
             if self.point_cloud_and_colors is not None:
                 draw_colored_point_cloud(
                     point_cloud_and_colors=self.point_cloud_and_colors,
-                    T_R_C2=T_R_C2,
+                    T_R_C2=self.T_R_C2,
                 )
             else:
                 rospy.logwarn("point_cloud_and_colors is None")
