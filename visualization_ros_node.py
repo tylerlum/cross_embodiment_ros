@@ -4,6 +4,7 @@ import faulthandler
 
 faulthandler.enable()
 
+import math
 import struct
 import functools
 import time
@@ -18,9 +19,9 @@ import trimesh
 from geometry_msgs.msg import Pose
 from isaacgymenvs.utils.cross_embodiment.camera_extrinsics import (
     ZED_CAMERA_T_R_C,
-    ZED_CAMERA_T_R_C2,
+    ZED_CAMERA_T_R_Cptcloud,
     REALSENSE_CAMERA_T_R_C,
-    REALSENSE_CAMERA_T_R_C2,
+    REALSENSE_CAMERA_T_R_Cptcloud,
 )
 from scipy.spatial.transform import Rotation as R
 from sensor_msgs.msg import JointState, PointCloud2
@@ -170,7 +171,7 @@ def transform_points(T: np.ndarray, points: np.ndarray) -> np.ndarray:
 
 def draw_colored_point_cloud(
     point_cloud_and_colors: np.ndarray,
-    T_R_C2: np.ndarray,
+    T_R_Cptcloud: np.ndarray,
     point_size: int = 5,
 ):
     n_pts = point_cloud_and_colors.shape[0]
@@ -180,15 +181,25 @@ def draw_colored_point_cloud(
     ), f"point_cloud_and_colors.shape: {point_cloud_and_colors.shape}"
     point_cloud = point_cloud_and_colors[:, :3]
 
-    # point_cloud is in C2 frame
-    point_cloud_R = transform_points(T=T_R_C2, points=point_cloud)
+    # point_cloud is in Cptcloud frame
+    point_cloud_R = transform_points(T=T_R_Cptcloud, points=point_cloud)
 
     # Extract colors from the point cloud
     point_cloud_raw_colors = point_cloud_and_colors[:, 3]
     point_cloud_colors = [rgb_to_float(color) for color in point_cloud_raw_colors]
+    num_points = len(point_cloud_colors)
+
+    # Downsample if too many points
+    MAX_POINTS = 100_000  # TODO: Tune
+    if num_points > MAX_POINTS:
+        downsample_factor = math.ceil(num_points / MAX_POINTS)
+        rospy.logwarn(f"num_points: {num_points} is greater than MAX_POINTS: {MAX_POINTS}, downsample_factor: {downsample_factor}")
+        point_cloud_R = point_cloud_R[::downsample_factor]
+        point_cloud_colors = point_cloud_colors[::downsample_factor]
 
     # Use debug points instead of spheres for faster rendering
     if not hasattr(draw_colored_point_cloud, "points"):
+        rospy.loginfo(f"Creating new point cloud with {len(point_cloud_R)} points")
         draw_colored_point_cloud.points = p.addUserDebugPoints(
             point_cloud_R,
             point_cloud_colors,
@@ -279,8 +290,15 @@ class VisualizationNode:
         self.goal_object_pose_sub = rospy.Subscriber(
             "/goal_object_pose", Pose, self.goal_object_pose_callback
         )
+
+        if self.camera == "zed":
+            point_cloud_topic = "/zed/zed_node/point_cloud/cloud_registered"
+        elif self.camera == "realsense":
+            point_cloud_topic = "/camera/depth/color/points"
+        else:
+            raise ValueError(f"Invalid camera: {self.camera}")
         self.point_cloud_sub = rospy.Subscriber(
-            "/zed/zed_node/point_cloud/cloud_registered",
+            point_cloud_topic,
             PointCloud2,
             self.point_cloud_callback,
         )
@@ -482,16 +500,16 @@ class VisualizationNode:
         )
 
         # Create the camera lines
-        CAMERA_LINES_TO_DRAW: Literal["C", "C2"] = "C"
+        CAMERA_LINES_TO_DRAW: Literal["C", "Cptcloud"] = "C"
         if CAMERA_LINES_TO_DRAW == "C":
             self.camera_lines = visualize_transform(
                 xyz=self.T_R_C[:3, 3],
                 rotation_matrix=self.T_R_C[:3, :3],
             )
-        elif CAMERA_LINES_TO_DRAW == "C2":
+        elif CAMERA_LINES_TO_DRAW == "Cptcloud":
             self.camera_lines = visualize_transform(
-                xyz=self.T_R_C2[:3, 3],
-                rotation_matrix=self.T_R_C2[:3, :3],
+                xyz=self.T_R_Cptcloud[:3, 3],
+                rotation_matrix=self.T_R_Cptcloud[:3, :3],
             )
         else:
             raise ValueError(f"Invalid CAMERA_LINES_TO_DRAW: {CAMERA_LINES_TO_DRAW}")
@@ -749,12 +767,12 @@ class VisualizationNode:
         )
 
         # Update the point cloud
-        LOAD_POINT_CLOUD = False
+        LOAD_POINT_CLOUD = True
         if LOAD_POINT_CLOUD:
             if self.point_cloud_and_colors is not None:
                 draw_colored_point_cloud(
                     point_cloud_and_colors=self.point_cloud_and_colors,
-                    T_R_C2=self.T_R_C2,
+                    T_R_Cptcloud=self.T_R_Cptcloud,
                 )
             else:
                 rospy.logwarn("point_cloud_and_colors is None")
@@ -868,11 +886,11 @@ class VisualizationNode:
 
     @property
     @functools.lru_cache()
-    def T_R_C2(self) -> np.ndarray:
+    def T_R_Cptcloud(self) -> np.ndarray:
         if self.camera == "zed":
-            return ZED_CAMERA_T_R_C2
+            return ZED_CAMERA_T_R_Cptcloud
         elif self.camera == "realsense":
-            return REALSENSE_CAMERA_T_R_C2
+            return REALSENSE_CAMERA_T_R_Cptcloud
         else:
             raise ValueError(f"Unknown camera: {self.camera}")
 
