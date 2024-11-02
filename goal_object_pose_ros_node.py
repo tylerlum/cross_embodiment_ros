@@ -30,7 +30,7 @@ class GoalObjectPosePublisher:
 
         MODE: Literal["trajectory", "position"] = "trajectory"
         if MODE == "trajectory":
-            TRAJECTORY_INDEX = 8
+            TRAJECTORY_INDEX = 1
             # OBJECT_NAME = "snackbox"
             OBJECT_NAME = "bluecup_tape_top"
 

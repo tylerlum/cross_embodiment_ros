@@ -13,7 +13,7 @@ NUM_ARM_JOINTS = 7
 NUM_HAND_JOINTS = 16
 INTERPOLATION_DT = 1.0 / 120.0  # Time to reach the new target (seconds)
 
-MAX_DT_COMMAND_SEC = 1.0  # Maximum time to wait for a new command (seconds)
+MAX_DT_COMMAND_SEC = 0.5  # Maximum time to wait for a new command (seconds)
 
 
 class FabricUpsampler:

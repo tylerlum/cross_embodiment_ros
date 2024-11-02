@@ -258,7 +258,7 @@ class IiwaAllegroFabricPublisher:
                 )
 
             # Stop if the joint states are not received for a long time
-            MAX_DT_JOINT_STATE_SEC = 1.0
+            MAX_DT_JOINT_STATE_SEC = 0.5
             time_since_iiwa_joint_state = (
                 rospy.Time.now() - self.received_iiwa_joint_state_time
             ).to_sec()

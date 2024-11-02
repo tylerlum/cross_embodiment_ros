@@ -203,10 +203,15 @@ class RLPolicyNode:
             # 2024-10-31
             # "https://wandb.ai/tylerlum/cross_embodiment/groups/2024-10-31_cup_trajectory/files/runs/0_base_move1_2024-10-31_01-47-27-815811/config_resolved.yaml?runName=0_base_move1_2024-10-31_01-47-27-815811"
             # "https://wandb.ai/tylerlum/cross_embodiment/groups/2024-10-31_cup_trajectory/files/runs/8_base_juno2_2024-10-31_01-49-07-406102/config_resolved.yaml?runName=8_base_juno2_2024-10-31_01-49-07-406102"
-            "https://wandb.ai/tylerlum/cross_embodiment/groups/2024-10-31_cup_trajectory/files/runs/8_friction0-5_ws-19_2024-10-31_01-58-35-276051/config_resolved.yaml?runName=8_friction0-5_ws-19_2024-10-31_01-58-35-276051"
-            # "https://wandb.ai/tylerlum/cross_embodiment/groups/2024-10-31_cup_trajectory/files/runs/7_base_juno2_2024-10-31_01-49-04-386494/config_resolved.yaml?runName=7_base_juno2_2024-10-31_01-49-04-386494"
+            # "https://wandb.ai/tylerlum/cross_embodiment/groups/2024-10-31_cup_trajectory/files/runs/8_friction0-5_ws-19_2024-10-31_01-58-35-276051/config_resolved.yaml?runName=8_friction0-5_ws-19_2024-10-31_01-58-35-276051"
             # "https://wandb.ai/tylerlum/cross_embodiment/groups/2024-10-31_cup_trajectory/files/runs/8_friction0-3-5-8_ws-16_2024-10-31_02-00-48-336319/config_resolved.yaml?runName=8_friction0-3-5-8_ws-16_2024-10-31_02-00-48-336319"
+
+            # "https://wandb.ai/tylerlum/cross_embodiment/groups/2024-10-31_cup_trajectory/files/runs/7_base_juno2_2024-10-31_01-49-04-386494/config_resolved.yaml?runName=7_base_juno2_2024-10-31_01-49-04-386494"
+            # "https://wandb.ai/tylerlum/cross_embodiment/groups/2024-10-31_cup_trajectory/files/runs/7_friction0-3-5-8_ws-19_2024-11-01_00-24-30-198703/config_resolved.yaml?runName=7_friction0-3-5-8_ws-19_2024-11-01_00-24-30-198703"
             # "https://wandb.ai/tylerlum/cross_embodiment/groups/2024-10-31_cup_trajectory/files/runs/5_base_juno2_2024-10-31_01-49-04-386691/config_resolved.yaml?runName=5_base_juno2_2024-10-31_01-49-04-386691"
+            # "https://wandb.ai/tylerlum/cross_embodiment/groups/2024-10-31_cup_trajectory/files/runs/5_friction0-3-5-8_ws-16_2024-11-01_00-25-26-246252/config_resolved.yaml?runName=5_friction0-3-5-8_ws-16_2024-11-01_00-25-26-246252"
+            # "https://wandb.ai/tylerlum/cross_embodiment/groups/2024-10-31_cup_trajectory/files/runs/0_friction0-5_move2_2024-11-01_00-36-13-707627/config_resolved.yaml?runName=0_friction0-5_move2_2024-11-01_00-36-13-707627"
+            "https://wandb.ai/tylerlum/cross_embodiment/groups/2024-10-31_cup_trajectory/files/runs/1_friction0-3-5-8_move1_2024-11-01_00-35-38-662409/config_resolved.yaml?runName=1_friction0-3-5-8_move1_2024-11-01_00-35-38-662409"
         )
         _, self.checkpoint_path = restore_file_from_wandb(
             # "https://wandb.ai/tylerlum/cross_embodiment/groups/2024-10-16_crackerbox_fabric_hard/files/runs/lstmnoconcat_move1_2024-10-16_02-00-31-760423/nn/lstmnoconcat_move1.pth?runName=lstmnoconcat_move1_2024-10-16_02-00-31-760423"
@@ -270,10 +275,14 @@ class RLPolicyNode:
             # 2024-10-31
             # "https://wandb.ai/tylerlum/cross_embodiment/groups/2024-10-31_cup_trajectory/files/runs/0_base_move1_2024-10-31_01-47-27-815811/nn/0_base_move1.pth?runName=0_base_move1_2024-10-31_01-47-27-815811"
             # "https://wandb.ai/tylerlum/cross_embodiment/groups/2024-10-31_cup_trajectory/files/runs/8_base_juno2_2024-10-31_01-49-07-406102/nn/8_base_juno2.pth?runName=8_base_juno2_2024-10-31_01-49-07-406102"
-            "https://wandb.ai/tylerlum/cross_embodiment/groups/2024-10-31_cup_trajectory/files/runs/8_friction0-5_ws-19_2024-10-31_01-58-35-276051/nn/8_friction0-5_ws-19.pth?runName=8_friction0-5_ws-19_2024-10-31_01-58-35-276051"
-            # "https://wandb.ai/tylerlum/cross_embodiment/groups/2024-10-31_cup_trajectory/files/runs/7_base_juno2_2024-10-31_01-49-04-386494/nn/7_base_juno2.pth?runName=7_base_juno2_2024-10-31_01-49-04-386494"
+            # "https://wandb.ai/tylerlum/cross_embodiment/groups/2024-10-31_cup_trajectory/files/runs/8_friction0-5_ws-19_2024-10-31_01-58-35-276051/nn/8_friction0-5_ws-19.pth?runName=8_friction0-5_ws-19_2024-10-31_01-58-35-276051"
             # "https://wandb.ai/tylerlum/cross_embodiment/groups/2024-10-31_cup_trajectory/files/runs/8_friction0-3-5-8_ws-16_2024-10-31_02-00-48-336319/nn/8_friction0-3-5-8_ws-16.pth?runName=8_friction0-3-5-8_ws-16_2024-10-31_02-00-48-336319"
+            # "https://wandb.ai/tylerlum/cross_embodiment/groups/2024-10-31_cup_trajectory/files/runs/7_base_juno2_2024-10-31_01-49-04-386494/nn/7_base_juno2.pth?runName=7_base_juno2_2024-10-31_01-49-04-386494"
+            # "https://wandb.ai/tylerlum/cross_embodiment/groups/2024-10-31_cup_trajectory/files/runs/7_friction0-3-5-8_ws-19_2024-11-01_00-24-30-198703/nn/7_friction0-3-5-8_ws-19.pth?runName=7_friction0-3-5-8_ws-19_2024-11-01_00-24-30-198703"
             # "https://wandb.ai/tylerlum/cross_embodiment/groups/2024-10-31_cup_trajectory/files/runs/5_base_juno2_2024-10-31_01-49-04-386691/nn/5_base_juno2.pth?runName=5_base_juno2_2024-10-31_01-49-04-386691"
+            # "https://wandb.ai/tylerlum/cross_embodiment/groups/2024-10-31_cup_trajectory/files/runs/5_friction0-3-5-8_ws-16_2024-11-01_00-25-26-246252/nn/5_friction0-3-5-8_ws-16.pth?runName=5_friction0-3-5-8_ws-16_2024-11-01_00-25-26-246252"
+            # "https://wandb.ai/tylerlum/cross_embodiment/groups/2024-10-31_cup_trajectory/files/runs/0_friction0-5_move2_2024-11-01_00-36-13-707627/nn/0_friction0-5_move2.pth?runName=0_friction0-5_move2_2024-11-01_00-36-13-707627"
+            "https://wandb.ai/tylerlum/cross_embodiment/groups/2024-10-31_cup_trajectory/files/runs/1_friction0-3-5-8_move1_2024-11-01_00-35-38-662409/nn/1_friction0-3-5-8_move1.pth?runName=1_friction0-3-5-8_move1_2024-11-01_00-35-38-662409"
         )
 
         # Create the RL player
@@ -397,7 +406,7 @@ class RLPolicyNode:
 
         # Stop if the fabric states are not received for a long time
         assert self.received_fabric_state_time is not None
-        MAX_DT_FABRIC_STATE_SEC = 1.0
+        MAX_DT_FABRIC_STATE_SEC = 0.5
         time_since_fabric_state = (
             rospy.Time.now() - self.received_fabric_state_time
         ).to_sec()
