@@ -7,10 +7,26 @@ from gym import spaces
 from rl_games.torch_runner import Runner, players
 
 from rl_player_utils import read_cfg
+from simple_rl.ppo_agent import PpoConfig
+from simple_rl.ppo_player import PlayerConfig, PpoPlayer
+from simple_rl.utils.dict_to_dataclass import dict_to_dataclass
+from simple_rl.utils.network import NetworkConfig
+from dataclasses import dataclass
 
 
 def assert_equals(a, b):
     assert a == b, f"{a} != {b}"
+
+@dataclass
+class DummyEnv:
+    observation_space: spaces.Box
+    action_space: spaces.Box
+
+    def get_env_info(self) -> dict:
+        return {
+            "observation_space": self.observation_space,
+            "action_space": self.action_space,
+        }
 
 
 class RlPlayer:
@@ -40,34 +56,26 @@ class RlPlayer:
 
     def create_rl_player(
         self, checkpoint_path: Optional[str]
-    ) -> players.PpoPlayerContinuous:
-        from rl_games.common import env_configurations
+    ) -> PpoPlayer:
+        train_params = self.cfg["train"]
+        network_config = dict_to_dataclass(train_params["network"], NetworkConfig)
+        player_config = dict_to_dataclass(train_params["player"], PlayerConfig)
+        ppo_player_config = dict_to_dataclass(
+            train_params["ppo"], PpoConfig
+        ).to_ppo_player_config()
 
-        env_configurations.register(
-            "rlgpu", {"env_creator": lambda **kwargs: self, "vecenv_type": "RLGPU"}
+        player = PpoPlayer(
+            ppo_player_config=ppo_player_config,
+            player_config=player_config,
+            network_config=network_config,
+            env=DummyEnv(
+                observation_space=self.observation_space, action_space=self.action_space
+            ),
         )
-
-        config = self.cfg["train"]
-
-        # Do we need this?
-        if self.device == "cpu":
-            try:
-                config["params"]["config"]["player"]["device_name"] = "cpu"
-            except KeyError:
-                config["params"]["config"]["player"] = {"device_name": "cpu"}
-            config["params"]["config"]["device"] = "cpu"
-
-        if checkpoint_path is not None:
-            config["load_path"] = checkpoint_path
-        runner = Runner()
-        runner.load(config)
-
-        os.environ["CUDA_VISIBLE_DEVICES"] = "0"
-        player = runner.create_player()
         player.init_rnn()
         player.has_batch_dimension = True
         if checkpoint_path is not None:
-            player.restore(checkpoint_path)
+            player.restore(str(checkpoint_path))
         return player
 
     def _run_sanity_checks(self) -> None:
@@ -89,26 +97,9 @@ class RlPlayer:
         batch_size = obs.shape[0]
         assert_equals(obs.shape, (batch_size, self.num_observations))
 
-        # HACK: Temporary fix because of rl_games version issue and misspelling
-        # https://github.com/Denys88/rl_games/commit/758ac4fc9d4b720d461156211e799ee24232aacb#diff-cf88a0669081362e86cafa389f3c6e10839b144892e468b41a63f29b906e2db1L44
-        # Get the signature of the get_action method
-        import inspect
-
-        get_action_signature = inspect.signature(self.player.get_action)
-        is_old_spelling = "is_determenistic" in get_action_signature.parameters
-        is_new_spelling = "is_deterministic" in get_action_signature.parameters
-        if is_new_spelling:
-            normalized_action = self.player.get_action(
-                obs=obs, is_deterministic=deterministic_actions
-            )
-        elif is_old_spelling:
-            normalized_action = self.player.get_action(
-                obs=obs, is_determenistic=deterministic_actions
-            )
-        else:
-            raise ValueError(
-                f"Cannot find is_determenistic or is_deterministic in {get_action_signature.parameters}"
-            )
+        normalized_action = self.player.get_action(
+            obs=obs, is_deterministic=deterministic_actions
+        )
 
         normalized_action = normalized_action.reshape(-1, self.num_actions)
         assert_equals(normalized_action.shape, (batch_size, self.num_actions))

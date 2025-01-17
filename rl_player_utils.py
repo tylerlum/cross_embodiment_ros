@@ -20,9 +20,9 @@ def read_cfg(config_path: str, device: Optional[str] = None) -> dict:
     cfg = omegaconf_to_dict(omegaconf_cfg)
 
     # Modify device manually
-    if device is not None:
-        cfg["train"]["params"]["config"]["device"] = device
-        cfg["train"]["params"]["config"]["device_name"] = device
+    # if device is not None:
+    #     cfg["train"]["params"]["config"]["device"] = device
+    #     cfg["train"]["params"]["config"]["device_name"] = device
 
     print("-" * 80)
     print("CONFIGURATION")
