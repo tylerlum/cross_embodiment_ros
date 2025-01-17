@@ -30,22 +30,23 @@ class GoalObjectPosePublisher:
 
         MODE: Literal["trajectory", "position"] = "trajectory"
         if MODE == "trajectory":
-            TRAJECTORY_INDEX = 1
-            # OBJECT_NAME = "snackbox"
-            OBJECT_NAME = "bluecup_tape_top"
 
             # Set up VecOliviaReferenceMotion
+            # TASK_NAME = "snackbox_pivot_hard_onestep"
+            # TASK_NAME = "ladel_hard_scoop"
+            # TASK_NAME = "plate_hard"
+            TASK_NAME = "watering_can"
+
+            if TASK_NAME == "watering_can":
+                TASK_NAME = "pitcher"
             TRAJECTORY_FOLDERPATH = Path(
-                f"/juno/u/oliviayl/repos/cross_embodiment/FoundationPose/debug_archive/{OBJECT_NAME}/{TRAJECTORY_INDEX}"
-            )
-            HAND_TRAJECTORY_FOLDERPATH = Path(
-                f"/juno/u/oliviayl/repos/cross_embodiment/hamer/outputs/{OBJECT_NAME}/{TRAJECTORY_INDEX}"
+                f"/juno/u/oliviayl/repos/cross_embodiment/FoundationPose/debug_archive/{TASK_NAME}/"
             )
 
             self.data_hz = 30
             self.trajectory = VecOliviaReferenceMotion(
                 trajectory_folder=TRAJECTORY_FOLDERPATH,
-                hand_folder=HAND_TRAJECTORY_FOLDERPATH,
+                hand_folder=None,
                 batch_size=1,
                 device="cuda",
                 dt=1 / self.data_hz,
