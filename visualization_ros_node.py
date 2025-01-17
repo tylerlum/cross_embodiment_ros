@@ -499,6 +499,15 @@ class VisualizationNode:
             rotation_matrix=R.from_euler("ZYX", FAR_AWAY_PALM_TARGET[3:]).as_matrix(),
         )
 
+        self.object_lines = visualize_transform(
+            xyz=FAR_AWAY_PALM_TARGET[:3],
+            rotation_matrix=R.from_euler("ZYX", FAR_AWAY_PALM_TARGET[3:]).as_matrix(),
+        )
+        self.goal_object_lines = visualize_transform(
+            xyz=FAR_AWAY_PALM_TARGET[:3],
+            rotation_matrix=R.from_euler("ZYX", FAR_AWAY_PALM_TARGET[3:]).as_matrix(),
+        )
+
         # Create the camera lines
         CAMERA_LINES_TO_DRAW: Literal["C", "Cptcloud"] = "C"
         if CAMERA_LINES_TO_DRAW == "C":
@@ -766,8 +775,20 @@ class VisualizationNode:
             self.goal_object_id, goal_object_pos, goal_object_quat_xyzw
         )
 
+        # Visualize object transforms
+        visualize_transform(
+            xyz=np.array(object_pos),
+            rotation_matrix=R.from_quat(object_quat_xyzw).as_matrix(),
+            lines=self.object_lines,
+        )
+        visualize_transform(
+            xyz=np.array(goal_object_pos),
+            rotation_matrix=R.from_quat(goal_object_quat_xyzw).as_matrix(),
+            lines=self.goal_object_lines,
+        )
+
         # Update the point cloud
-        LOAD_POINT_CLOUD = True
+        LOAD_POINT_CLOUD = False
         if LOAD_POINT_CLOUD:
             if self.point_cloud_and_colors is not None:
                 draw_colored_point_cloud(
