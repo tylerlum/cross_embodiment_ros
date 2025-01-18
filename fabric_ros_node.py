@@ -148,8 +148,8 @@ class IiwaAllegroFabricPublisher:
         initialize_warp(warp_cache_name="")
 
         # Set up the world model
-        # self.fabric_world_dict = world_dict_robot_frame
-        self.fabric_world_dict = None
+        self.fabric_world_dict = world_dict_robot_frame
+        # self.fabric_world_dict = None
         self.fabric_world_model = WorldMeshesModel(
             batch_size=self.num_envs,
             max_objects_per_env=20,

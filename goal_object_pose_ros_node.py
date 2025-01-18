@@ -34,8 +34,8 @@ class GoalObjectPosePublisher:
             # Set up VecOliviaReferenceMotion
             # TASK_NAME = "snackbox_pivot_hard_onestep"
             # TASK_NAME = "ladel_hard_scoop"
-            # TASK_NAME = "plate_hard"
-            TASK_NAME = "watering_can"
+            TASK_NAME = "plate_hard"
+            # TASK_NAME = "watering_can"
 
             if TASK_NAME == "watering_can":
                 TASK_NAME = "pitcher"
