@@ -4,12 +4,15 @@ import numpy as np
 import rospy
 import torch
 from geometry_msgs.msg import Pose
-from isaacgymenvs.utils.cross_embodiment.camera_extrinsics import T_R_C
+from isaacgymenvs.utils.cross_embodiment.camera_extrinsics import ZED_CAMERA_T_R_C, REALSENSE_CAMERA_T_R_C
 from isaacgymenvs.utils.wandb_utils import restore_file_from_wandb
 from scipy.spatial.transform import Rotation as R
 from sensor_msgs.msg import JointState
 
 from print_utils import get_ros_loop_rate_str
+
+# Hardcode use ZED camera
+T_R_C = ZED_CAMERA_T_R_C
 
 NUM_ARM_JOINTS = 7
 NUM_HAND_JOINTS = 16
