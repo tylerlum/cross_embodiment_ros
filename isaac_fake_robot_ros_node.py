@@ -96,13 +96,15 @@ class IsaacFakeRobotNode:
             self.allegro_joint_cmd = np.zeros(NUM_HAND_JOINTS)
 
         _, CONFIG_PATH = restore_file_from_wandb(
-            "https://wandb.ai/tylerlum/cross_embodiment/groups/2024-10-05_cup_fabric_reset-early_multigpu/files/runs/TOP_4-freq_coll-on_juno1_2_2024-10-07_23-27-58-967674/config_resolved.yaml?runName=TOP_4-freq_coll-on_juno1_2_2024-10-07_23-27-58-967674"
+            # "https://wandb.ai/tylerlum/cross_embodiment/groups/2024-10-05_cup_fabric_reset-early_multigpu/files/runs/TOP_4-freq_coll-on_juno1_2_2024-10-07_23-27-58-967674/config_resolved.yaml?runName=TOP_4-freq_coll-on_juno1_2_2024-10-07_23-27-58-967674"
+            "https://wandb.ai/tylerlum/cross_embodiment/groups/2025-01-15_updated_pregrasps_2/files/runs/plate_hard_FORCES_juno2-lo_2025-01-15_11-48-36-651851/config_resolved.yaml?runName=plate_hard_FORCES_juno2-lo_2025-01-15_11-48-36-651851_7xp5thny"
         )
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
         self.env = create_env(
             config_path=CONFIG_PATH,
             device=self.device,
             headless=True,
+            # headless=False,
             enable_viewer_sync_at_start=False,
         )
 

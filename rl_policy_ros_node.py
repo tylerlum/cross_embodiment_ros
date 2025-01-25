@@ -134,8 +134,8 @@ class RLPolicyNode:
 
             # 2025-01-16
             # "https://wandb.ai/tylerlum/cross_embodiment/groups/2025-01-15_updated_pregrasps_2/files/runs/ladel_hard_scoop_FORCES_juno2-lo_2025-01-15_11-48-35-403864/config_resolved.yaml?runName=ladel_hard_scoop_FORCES_juno2-lo_2025-01-15_11-48-35-403864_vi1sft9j"
-            "https://wandb.ai/tylerlum/cross_embodiment/groups/2025-01-16_experiments/files/runs/plate_hard_65damp_move1_2025-01-16_00-53-04-618360/config_resolved.yaml?runName=plate_hard_65damp_move1_2025-01-16_00-53-04-618360_2amo0e8y"
-            # "https://wandb.ai/tylerlum/cross_embodiment/groups/2025-01-15_updated_pregrasps_2/files/runs/plate_hard_FORCES_juno2-lo_2025-01-15_11-48-36-651851/config_resolved.yaml?runName=plate_hard_FORCES_juno2-lo_2025-01-15_11-48-36-651851_7xp5thny"
+            # "https://wandb.ai/tylerlum/cross_embodiment/groups/2025-01-16_experiments/files/runs/plate_hard_65damp_move1_2025-01-16_00-53-04-618360/config_resolved.yaml?runName=plate_hard_65damp_move1_2025-01-16_00-53-04-618360_2amo0e8y"
+            "https://wandb.ai/tylerlum/cross_embodiment/groups/2025-01-15_updated_pregrasps_2/files/runs/plate_hard_FORCES_juno2-lo_2025-01-15_11-48-36-651851/config_resolved.yaml?runName=plate_hard_FORCES_juno2-lo_2025-01-15_11-48-36-651851_7xp5thny"
             # "https://wandb.ai/tylerlum/cross_embodiment/groups/2025-01-15_updated_pregrasps_2/files/runs/watering_can_move2_2025-01-15_11-45-55-011129/config_resolved.yaml?runName=watering_can_move2_2025-01-15_11-45-55-011129_kb5rd4jf"
         )
         _, self.checkpoint_path = restore_file_from_wandb(
@@ -147,8 +147,8 @@ class RLPolicyNode:
 
             # 2025-01-16
             # "https://wandb.ai/tylerlum/cross_embodiment/groups/2025-01-15_updated_pregrasps_2/files/runs/ladel_hard_scoop_FORCES_juno2-lo_2025-01-15_11-48-35-403864/nn/best.pth?runName=ladel_hard_scoop_FORCES_juno2-lo_2025-01-15_11-48-35-403864_vi1sft9j"
-            "https://wandb.ai/tylerlum/cross_embodiment/groups/2025-01-16_experiments/files/runs/plate_hard_65damp_move1_2025-01-16_00-53-04-618360/nn/best.pth?runName=plate_hard_65damp_move1_2025-01-16_00-53-04-618360_2amo0e8y"
-            # "https://wandb.ai/tylerlum/cross_embodiment/groups/2025-01-15_updated_pregrasps_2/files/runs/plate_hard_FORCES_juno2-lo_2025-01-15_11-48-36-651851/nn/best.pth?runName=plate_hard_FORCES_juno2-lo_2025-01-15_11-48-36-651851_7xp5thny"
+            # "https://wandb.ai/tylerlum/cross_embodiment/groups/2025-01-16_experiments/files/runs/plate_hard_65damp_move1_2025-01-16_00-53-04-618360/nn/best.pth?runName=plate_hard_65damp_move1_2025-01-16_00-53-04-618360_2amo0e8y"
+            "https://wandb.ai/tylerlum/cross_embodiment/groups/2025-01-15_updated_pregrasps_2/files/runs/plate_hard_FORCES_juno2-lo_2025-01-15_11-48-36-651851/nn/best.pth?runName=plate_hard_FORCES_juno2-lo_2025-01-15_11-48-36-651851_7xp5thny"
             # "https://wandb.ai/tylerlum/cross_embodiment/groups/2025-01-15_updated_pregrasps_2/files/runs/watering_can_move2_2025-01-15_11-45-55-011129/nn/best.pth?runName=watering_can_move2_2025-01-15_11-45-55-011129_kb5rd4jf"
         )
 

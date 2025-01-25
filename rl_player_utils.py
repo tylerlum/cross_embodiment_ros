@@ -20,9 +20,15 @@ def read_cfg(config_path: str, device: Optional[str] = None) -> dict:
     cfg = omegaconf_to_dict(omegaconf_cfg)
 
     # Modify device manually
-    # if device is not None:
-    #     cfg["train"]["params"]["config"]["device"] = device
-    #     cfg["train"]["params"]["config"]["device_name"] = device
+    if device is not None:
+        if "train" in cfg and "params" in cfg["train"] and "config" in cfg["train"]["params"]:
+            # OLD
+            cfg["train"]["params"]["config"]["device"] = device
+            cfg["train"]["params"]["config"]["device_name"] = device
+        else:
+            # NEW
+            cfg["rl_device"] = device
+            cfg["sim_device"] = device
 
     print("-" * 80)
     print("CONFIGURATION")
@@ -44,8 +50,14 @@ def read_cfg_omegaconf(config_path: str, device: Optional[str] = None) -> DictCo
 
     # Modify device manually
     if device is not None:
-        omegaconf_cfg.train.params.config.device = device
-        omegaconf_cfg.train.params.config.device_name = device
+        if "train" in omegaconf_cfg and "params" in omegaconf_cfg.train and "config" in omegaconf_cfg.train.params:
+            # OLD
+            omegaconf_cfg.train.params.config.device = device
+            omegaconf_cfg.train.params.config.device_name = device
+        else:
+            # NEW
+            omegaconf_cfg.rl_device = device
+            omegaconf_cfg.sim_device = device
 
     print("-" * 80)
     print("CONFIGURATION")

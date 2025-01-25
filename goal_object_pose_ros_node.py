@@ -40,7 +40,7 @@ class GoalObjectPosePublisher:
             if TASK_NAME == "watering_can":
                 TASK_NAME = "pitcher"
             TRAJECTORY_FOLDERPATH = Path(
-                f"/juno/u/oliviayl/repos/cross_embodiment/FoundationPose/debug_archive/{TASK_NAME}/"
+                f"/juno/u/oliviayl/repos/cross_embodiment/FoundationPose/debug_archive/pre_final/{TASK_NAME}/"
             )
 
             self.data_hz = 30
