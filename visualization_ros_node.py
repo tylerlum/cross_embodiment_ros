@@ -23,6 +23,15 @@ from isaacgymenvs.utils.cross_embodiment.camera_extrinsics import (
     REALSENSE_CAMERA_T_R_C,
     REALSENSE_CAMERA_T_R_Cptcloud,
 )
+from isaacgymenvs.utils.cross_embodiment.table_constants import (
+    TABLE_X,
+    TABLE_Y,
+    TABLE_Z,
+    TABLE_QX,
+    TABLE_QY,
+    TABLE_QZ,
+    TABLE_QW,
+)
 from scipy.spatial.transform import Rotation as R
 from sensor_msgs.msg import JointState, PointCloud2
 from std_msgs.msg import Float64MultiArray
@@ -329,7 +338,7 @@ class VisualizationNode:
         self.robot_cmd_id = p.loadURDF(str(robot_urdf_path), useFixedBase=True)
 
         # Load the scene mesh
-        LOAD_SCENE_MESH = True
+        LOAD_SCENE_MESH = False
         if LOAD_SCENE_MESH:
             scene_urdf_path = Path(
                 "/juno/u/tylerlum/github_repos/bidexhands_isaacgymenvs/assets/urdf/scene_mesh/model.urdf"
@@ -367,6 +376,17 @@ class VisualizationNode:
                 useFixedBase=True,
                 basePosition=[x, y, z],
                 baseOrientation=[qx, qy, qz, qw],
+            )
+        else:
+            table_urdf_path = Path(
+                "/juno/u/tylerlum/github_repos/bidexhands_isaacgymenvs/assets/urdf/table/table.urdf"
+            )
+            _table_id = p.loadURDF(
+                str(table_urdf_path),
+                useFixedBase=True,
+                # basePosition=[TABLE_X, TABLE_Y, TABLE_Z],
+                basePosition=[TABLE_X, TABLE_Y, TABLE_Z + 0],
+                baseOrientation=[TABLE_QX, TABLE_QY, TABLE_QZ, TABLE_QW],
             )
 
         # Load the object mesh
