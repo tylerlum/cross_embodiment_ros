@@ -31,6 +31,9 @@ from isaacgymenvs.utils.cross_embodiment.table_constants import (
     TABLE_QY,
     TABLE_QZ,
     TABLE_QW,
+    TABLE_LENGTH_X,
+    TABLE_LENGTH_Y,
+    TABLE_LENGTH_Z,
 )
 from scipy.spatial.transform import Rotation as R
 from sensor_msgs.msg import JointState, PointCloud2
@@ -44,6 +47,7 @@ NUM_HAND_JOINTS = 16
 BLUE_TRANSLUCENT_RGBA = [0, 0, 1, 0.5]
 RED_TRANSLUCENT_RGBA = [1, 0, 0, 0.2]
 GREEN_TRANSLUCENT_RGBA = [0, 1, 0, 0.5]
+BLACK_TRANSLUCENT_RGBA = [0, 0, 0, 0.5]
 
 BLUE_RGB = [0, 0, 1]
 RED_RGB = [1, 0, 0]
@@ -195,14 +199,26 @@ def draw_colored_point_cloud(
 
     # Extract colors from the point cloud
     point_cloud_raw_colors = point_cloud_and_colors[:, 3]
-    point_cloud_colors = [rgb_to_float(color) for color in point_cloud_raw_colors]
+    point_cloud_colors = np.array(
+        [rgb_to_float(color) for color in point_cloud_raw_colors]
+    )
+
+    FILTER_POINT_CLOUD = False
+    if FILTER_POINT_CLOUD:
+        # idxs = (point_cloud_R[:, 0] > 0) & (point_cloud_R[:, 1] < 0)
+        idxs = (point_cloud_R[:, 0] > 0) & (point_cloud_R[:, 1] < -0.2)
+        point_cloud_R = point_cloud_R[idxs]
+        point_cloud_colors = point_cloud_colors[idxs]
+
     num_points = len(point_cloud_colors)
 
     # Downsample if too many points
     MAX_POINTS = 100_000  # TODO: Tune
     if num_points > MAX_POINTS:
         downsample_factor = math.ceil(num_points / MAX_POINTS)
-        rospy.logwarn(f"num_points: {num_points} is greater than MAX_POINTS: {MAX_POINTS}, downsample_factor: {downsample_factor}")
+        rospy.logwarn(
+            f"num_points: {num_points} is greater than MAX_POINTS: {MAX_POINTS}, downsample_factor: {downsample_factor}"
+        )
         point_cloud_R = point_cloud_R[::downsample_factor]
         point_cloud_colors = point_cloud_colors[::downsample_factor]
 
@@ -334,8 +350,25 @@ class VisualizationNode:
             "/juno/u/tylerlum/github_repos/fabrics-sim/src/fabrics_sim/models/robots/urdf/kuka_allegro/kuka_allegro.urdf"
         )
         assert robot_urdf_path.exists(), f"robot_urdf_path not found: {robot_urdf_path}"
-        self.robot_id = p.loadURDF(str(robot_urdf_path), useFixedBase=True)
-        self.robot_cmd_id = p.loadURDF(str(robot_urdf_path), useFixedBase=True)
+
+        # WARNING: After extensive testing, we find that the Allegro hand robot in the real world
+        #          is about 1.2cm lower than the simulated Allegro hand for most joint angles.
+        #          This difference is severe enough to cause low-profile manipulation tasks to fail
+        #          Thus, we manually offset the robot base by 1.2cm in the z-direction.
+        # MANUAL_OFFSET_ROBOT_Z = -0.007
+        MANUAL_OFFSET_ROBOT_Z = -0.012
+        self.robot_id = p.loadURDF(
+            str(robot_urdf_path),
+            useFixedBase=True,
+            basePosition=[0, 0, MANUAL_OFFSET_ROBOT_Z],
+            baseOrientation=[0, 0, 0, 1],
+        )
+        self.robot_cmd_id = p.loadURDF(
+            str(robot_urdf_path),
+            useFixedBase=True,
+            basePosition=[0, 0, MANUAL_OFFSET_ROBOT_Z],
+            baseOrientation=[0, 0, 0, 1],
+        )
 
         # Load the scene mesh
         LOAD_SCENE_MESH = False
@@ -377,7 +410,9 @@ class VisualizationNode:
                 basePosition=[x, y, z],
                 baseOrientation=[qx, qy, qz, qw],
             )
-        else:
+
+        LOAD_TABLE = True
+        if LOAD_TABLE:
             table_urdf_path = Path(
                 "/juno/u/tylerlum/github_repos/bidexhands_isaacgymenvs/assets/urdf/table/table.urdf"
             )
@@ -389,22 +424,27 @@ class VisualizationNode:
                 baseOrientation=[TABLE_QX, TABLE_QY, TABLE_QZ, TABLE_QW],
             )
 
+            TRANSPARENT_TABLE = False
+            if TRANSPARENT_TABLE:
+                # Make the table black transparent
+                # Change the color of each link (including the base)
+                for link_index in range(
+                    -1, p.getNumJoints(_table_id)
+                ):  # -1 is for the base
+                    p.changeVisualShape(
+                        _table_id, link_index, rgbaColor=BLACK_TRANSLUCENT_RGBA
+                    )
+
         # Load the object mesh
         FAR_AWAY_OBJECT_POSITION = np.ones(3)
         object_mesh_path = rospy.get_param("/mesh_file", None)
         if object_mesh_path is None:
-            DEFAULT_MESH_PATH = (
-                # "/juno/u/oliviayl/repos/cross_embodiment/FoundationPose/kiri_meshes/blueblock/3DModel.obj"
-                # "/juno/u/oliviayl/repos/cross_embodiment/FoundationPose/kiri_meshes/snackbox/3DModel.obj"
-                # "/juno/u/oliviayl/repos/cross_embodiment/FoundationPose/kiri_meshes/woodblock/3DModel.obj"
-                # "/juno/u/oliviayl/repos/cross_embodiment/FoundationPose/kiri_meshes/cup_ycbv/textured.obj"
-                "/juno/u/tylerlum/github_repos/cross_embodiment_ros/kiri_meshes/cup_ycbv/textured.obj"
-            )
+            DEFAULT_MESH_PATH = "/juno/u/tylerlum/github_repos/cross_embodiment_ros/kiri_meshes/cup_ycbv/textured.obj"
             object_mesh_path = DEFAULT_MESH_PATH
             rospy.logwarn(f"Using default object mesh: {object_mesh_path}")
-        assert isinstance(
-            object_mesh_path, str
-        ), f"object_mesh_path: {object_mesh_path}"
+        assert isinstance(object_mesh_path, str), (
+            f"object_mesh_path: {object_mesh_path}"
+        )
         rospy.loginfo("~" * 80)
         rospy.loginfo(f"object_mesh_path: {object_mesh_path}")
         rospy.loginfo("~" * 80 + "\n")
@@ -475,10 +515,23 @@ class VisualizationNode:
         )
         p.changeVisualShape(self.goal_object_id, -1, rgbaColor=GREEN_TRANSLUCENT_RGBA)
 
+        TRANSLUCENT_ROBOT = True
+        if TRANSLUCENT_ROBOT:
+            # Make the robot translucent
+            # Change the color of each link (including the base)
+            robot_visual_data = p.getVisualShapeData(self.robot_id)
+            for visual_shape in robot_visual_data:
+                link_idx = visual_shape[1]  # Link index
+                rgba = visual_shape[7]  # RGBA color
+                TRANSPARENCY = 0.5
+                new_rgba = (rgba[0], rgba[1], rgba[2], TRANSPARENCY)
+                p.changeVisualShape(self.robot_id, link_idx, rgbaColor=new_rgba)
+
         # Make the robot blue
         # Change the color of each link (including the base)
-        num_joints = p.getNumJoints(self.robot_id)
-        for link_index in range(-1, num_joints):  # -1 is for the base
+        for link_index in range(
+            -1, p.getNumJoints(self.robot_cmd_id)
+        ):  # -1 is for the base
             p.changeVisualShape(
                 self.robot_cmd_id, link_index, rgbaColor=BLUE_TRANSLUCENT_RGBA
             )
@@ -591,9 +644,9 @@ class VisualizationNode:
             if p.getJointInfo(robot, i)[2] != p.JOINT_FIXED
         ]
         num_actuatable_joints = len(actuatable_joint_idxs)
-        assert (
-            num_actuatable_joints == 23
-        ), f"num_actuatable_joints: {num_actuatable_joints}"
+        assert num_actuatable_joints == 23, (
+            f"num_actuatable_joints: {num_actuatable_joints}"
+        )
 
         for i, joint_idx in enumerate(actuatable_joint_idxs):
             p.resetJointState(robot, joint_idx, q[i])
@@ -606,9 +659,9 @@ class VisualizationNode:
             if p.getJointInfo(robot, i)[2] != p.JOINT_FIXED
         ]
         num_actuatable_joints = len(actuatable_joint_idxs)
-        assert (
-            num_actuatable_joints == 23
-        ), f"num_actuatable_joints: {num_actuatable_joints}"
+        assert num_actuatable_joints == 23, (
+            f"num_actuatable_joints: {num_actuatable_joints}"
+        )
 
         q = np.zeros(num_actuatable_joints)
         for i, joint_idx in enumerate(actuatable_joint_idxs):
@@ -808,7 +861,7 @@ class VisualizationNode:
         )
 
         # Update the point cloud
-        LOAD_POINT_CLOUD = False
+        LOAD_POINT_CLOUD = True
         if LOAD_POINT_CLOUD:
             if self.point_cloud_and_colors is not None:
                 draw_colored_point_cloud(
