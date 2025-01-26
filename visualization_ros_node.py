@@ -371,7 +371,7 @@ class VisualizationNode:
         )
 
         # Load the scene mesh
-        LOAD_SCENE_MESH = False
+        LOAD_SCENE_MESH = True
         if LOAD_SCENE_MESH:
             scene_urdf_path = Path(
                 "/juno/u/tylerlum/github_repos/bidexhands_isaacgymenvs/assets/urdf/scene_mesh/model.urdf"
