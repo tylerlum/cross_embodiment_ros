@@ -60,6 +60,8 @@ DEFAULT_HAND_Q = np.array(
     ]
 )
 
+USE_CONTROL_DT = True
+
 
 class IsaacFakeRobotNode:
     def __init__(self):
@@ -105,14 +107,17 @@ class IsaacFakeRobotNode:
         self.env = create_env(
             config_path=CONFIG_PATH,
             device=self.device,
-            headless=False,
             # headless=False,
+            headless=True,
             enable_viewer_sync_at_start=True,
             # enable_viewer_sync_at_start=False,
         )
 
         # Set control rate
-        self.dt = self.env.control_dt
+        if USE_CONTROL_DT:
+            self.dt = self.env.control_dt
+        else:
+            self.dt = self.env.sim_dt
         self.rate_hz = 1 / self.dt
         self.rate = rospy.Rate(self.rate_hz)
 
@@ -137,6 +142,7 @@ class IsaacFakeRobotNode:
                     dtype=torch.float,
                 ),
                 set_dof_pos_targets=False,
+                control_freq_inv=None if USE_CONTROL_DT else 1,
             )
         else:
             action = (
@@ -148,7 +154,9 @@ class IsaacFakeRobotNode:
                 .repeat_interleave(self.env.num_envs, dim=0)
             )
 
-            self.env.step_no_fabric(action, set_dof_pos_targets=True)
+            self.env.step_no_fabric(
+                action, set_dof_pos_targets=True, control_freq_inv=None if USE_CONTROL_DT else 1
+            )
 
         right_robot_dof_pos = self.env.right_robot_dof_pos[0].detach().cpu().numpy()
         right_robot_dof_vel = self.env.right_robot_dof_vel[0].detach().cpu().numpy()
