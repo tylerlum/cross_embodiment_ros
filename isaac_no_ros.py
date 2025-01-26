@@ -1,48 +1,20 @@
 #!/usr/bin/env python
 from isaacgymenvs.utils.cross_embodiment.create_env import create_env  # isort:skip
-import numpy as np
-import torch
-from geometry_msgs.msg import Pose
-from isaacgymenvs.utils.cross_embodiment.camera_extrinsics import (
-    ZED_CAMERA_T_R_C,
-    REALSENSE_CAMERA_T_R_C,
-)
-from isaacgymenvs.utils.wandb_utils import restore_file_from_wandb
-from scipy.spatial.transform import Rotation as R
-from sensor_msgs.msg import JointState
+from pathlib import Path
+from typing import List, Literal, Optional, Tuple
 
 import numpy as np
 import torch
-from typing import Literal, List
-
-# Import from the fabrics_sim package
-from fabrics_sim.fabrics.kuka_allegro_pose_fabric import KukaAllegroPoseFabric
 from fabrics_sim.fabrics.kuka_allegro_pose_allhand_fabric import (
     KukaAllegroPoseAllHandFabric,
 )
+
+# Import from the fabrics_sim package
+from fabrics_sim.fabrics.kuka_allegro_pose_fabric import KukaAllegroPoseFabric
 from fabrics_sim.integrator.integrators import DisplacementIntegrator
 from fabrics_sim.utils.utils import capture_fabric, initialize_warp
 from fabrics_sim.worlds.world_mesh_model import WorldMeshesModel
-from sensor_msgs.msg import JointState
-from std_msgs.msg import Float64MultiArray
-
-from fabric_world import world_dict_robot_frame
-from typing import Tuple
-
-
-import copy
-from pathlib import Path
-from typing import Optional, Tuple, Literal
-import functools
-
-import numpy as np
-import torch
-from geometry_msgs.msg import Pose
 from isaacgym.torch_utils import to_torch
-from isaacgymenvs.utils.cross_embodiment.camera_extrinsics import (
-    ZED_CAMERA_T_R_C,
-    REALSENSE_CAMERA_T_R_C,
-)
 from isaacgymenvs.utils.cross_embodiment.constants import (
     NUM_XYZ,
 )
@@ -69,13 +41,9 @@ from isaacgymenvs.utils.cross_embodiment.utils import (
     rescale,
 )
 from isaacgymenvs.utils.wandb_utils import restore_file_from_wandb
-from scipy.spatial.transform import Rotation as R
-from sensor_msgs.msg import JointState
-from std_msgs.msg import Float64MultiArray, MultiArrayDimension, MultiArrayLayout
 
-from print_utils import get_ros_loop_rate_str
+from fabric_world import world_dict_robot_frame
 from rl_player import RlPlayer
-
 
 FABRIC_MODE: Literal["PCA", "ALL"] = "PCA"
 
@@ -109,25 +77,26 @@ def taskmap_helper(
         jac.reshape(N, n_points, NUM_XYZ, KUKA_ALLEGRO_NUM_DOFS),
     )
 
+
 def create_observation(
-        iiwa_position: np.ndarray,
-        iiwa_velocity: np.ndarray,
-        allegro_position: np.ndarray,
-        allegro_velocity: np.ndarray,
-        fabric_q: np.ndarray,
-        fabric_qd: np.ndarray,
-        object_position_R: np.ndarray,
-        object_quat_xyzw_R: np.ndarray,
-        goal_object_pos_R: np.ndarray,
-        goal_object_quat_xyzw_R: np.ndarray,
-        object_pos_R_prev: np.ndarray,
-        object_quat_xyzw_R_prev: np.ndarray,
-        object_pos_R_prev_prev: np.ndarray,
-        object_quat_xyzw_R_prev_prev: np.ndarray,
-        device: torch.device,
-        taskmap,
-        taskmap_link_names: List[str],
-        num_observations: int,
+    iiwa_position: np.ndarray,
+    iiwa_velocity: np.ndarray,
+    allegro_position: np.ndarray,
+    allegro_velocity: np.ndarray,
+    fabric_q: np.ndarray,
+    fabric_qd: np.ndarray,
+    object_position_R: np.ndarray,
+    object_quat_xyzw_R: np.ndarray,
+    goal_object_pos_R: np.ndarray,
+    goal_object_quat_xyzw_R: np.ndarray,
+    object_pos_R_prev: np.ndarray,
+    object_quat_xyzw_R_prev: np.ndarray,
+    object_pos_R_prev_prev: np.ndarray,
+    object_quat_xyzw_R_prev_prev: np.ndarray,
+    device: torch.device,
+    taskmap,
+    taskmap_link_names: List[str],
+    num_observations: int,
 ) -> Optional[torch.Tensor]:
     keypoint_offsets = to_torch(
         OBJECT_KEYPOINT_OFFSETS,
@@ -161,9 +130,7 @@ def create_observation(
     obs_dict = {}
     obs_dict["q"] = np.concatenate([iiwa_position, allegro_position])
     obs_dict["qd"] = np.concatenate([iiwa_velocity, allegro_velocity])
-    obs_dict["fingertip_positions"] = fingertip_positions.reshape(
-        NUM_FINGERS * NUM_XYZ
-    )
+    obs_dict["fingertip_positions"] = fingertip_positions.reshape(NUM_FINGERS * NUM_XYZ)
     obs_dict["palm_pos"] = palm_pos
     obs_dict["palm_x_pos"] = palm_x_pos
     obs_dict["palm_y_pos"] = palm_y_pos
@@ -244,8 +211,14 @@ def create_observation(
     return torch.from_numpy(observation).float().unsqueeze(0).to(device)
 
 
-
-def rescale_action(action: torch.Tensor, palm_mins: torch.Tensor, palm_maxs: torch.Tensor, hand_mins: torch.Tensor, hand_maxs: torch.Tensor, num_actions: int) -> Tuple[torch.Tensor, torch.Tensor]:
+def rescale_action(
+    action: torch.Tensor,
+    palm_mins: torch.Tensor,
+    palm_maxs: torch.Tensor,
+    hand_mins: torch.Tensor,
+    hand_maxs: torch.Tensor,
+    num_actions: int,
+) -> Tuple[torch.Tensor, torch.Tensor]:
     N = action.shape[0]
     assert_equals(action.shape, (N, num_actions))
 
@@ -265,6 +238,7 @@ def rescale_action(action: torch.Tensor, palm_mins: torch.Tensor, palm_maxs: tor
         new_maxs=hand_maxs,
     )
     return palm_target, hand_target
+
 
 def main():
     """
@@ -433,9 +407,9 @@ def main():
     palm_maxs = torch.tensor([1.0, 0.7, 1.0, 3.1416, 3.1416, 3.1416], device=device)
 
     hand_action_space = player.cfg["task"]["env"]["custom"]["FABRIC_HAND_ACTION_SPACE"]
-    assert hand_action_space == FABRIC_MODE, (
-        f"Invalid hand action space: {hand_action_space} != {FABRIC_MODE}"
-    )
+    assert (
+        hand_action_space == FABRIC_MODE
+    ), f"Invalid hand action space: {hand_action_space} != {FABRIC_MODE}"
     if FABRIC_MODE == "PCA":
         hand_mins = torch.tensor(
             [0.2475, -0.3286, -0.7238, -0.0192, -0.5532], device=device
@@ -530,11 +504,14 @@ def main():
     prev_prev_object_pos_R = prev_object_pos_R.clone()
     prev_prev_object_quat_xyzw_R = prev_object_quat_xyzw_R.clone()
 
-
     fabric_q.copy_(
         torch.from_numpy(
             np.concatenate(
-                [iiwa_joint_q.detach().cpu().numpy(), allegro_joint_q.detach().cpu().numpy()], axis=0
+                [
+                    iiwa_joint_q.detach().cpu().numpy(),
+                    allegro_joint_q.detach().cpu().numpy(),
+                ],
+                axis=0,
             )
         )
         .float()
@@ -560,7 +537,9 @@ def main():
             object_pos_R_prev=prev_object_pos_R.detach().cpu().numpy(),
             object_quat_xyzw_R_prev=prev_object_quat_xyzw_R.detach().cpu().numpy(),
             object_pos_R_prev_prev=prev_prev_object_pos_R.detach().cpu().numpy(),
-            object_quat_xyzw_R_prev_prev=prev_prev_object_quat_xyzw_R.detach().cpu().numpy(),
+            object_quat_xyzw_R_prev_prev=prev_prev_object_quat_xyzw_R.detach()
+            .cpu()
+            .numpy(),
             device=device,
             taskmap=taskmap,
             taskmap_link_names=taskmap_link_names,
@@ -569,7 +548,9 @@ def main():
         assert_equals(obs.shape, (1, num_observations))
 
         # Get the normalized action from the RL player
-        normalized_action = player.get_normalized_action(obs=obs, deterministic_actions=False)
+        normalized_action = player.get_normalized_action(
+            obs=obs, deterministic_actions=False
+        )
         assert_equals(normalized_action.shape, (1, num_actions))
 
         # Rescale the action to get palm and hand targets
@@ -588,14 +569,10 @@ def main():
         """
         # Update fabric targets for palm and hand
         fabric_palm_target.copy_(
-            torch.from_numpy(palm_target.detach().cpu().numpy())
-            .float()
-            .to(device)
+            torch.from_numpy(palm_target.detach().cpu().numpy()).float().to(device)
         )
         fabric_hand_target.copy_(
-            torch.from_numpy(hand_target.detach().cpu().numpy())
-            .float()
-            .to(device)
+            torch.from_numpy(hand_target.detach().cpu().numpy()).float().to(device)
         )
 
         # Step the fabric using the captured CUDA graph
@@ -631,8 +608,6 @@ def main():
         object_quat_xyzw_R = env.object_quat_xyzw[0]
         goal_object_pos_R = env.goal_object_pos[0]
         goal_object_quat_xyzw_R = env.goal_object_quat_xyzw[0]
-
-
 
 
 if __name__ == "__main__":

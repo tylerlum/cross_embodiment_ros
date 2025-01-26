@@ -1,13 +1,16 @@
 #!/usr/bin/env python
 
+from typing import Literal
+
 import numpy as np
 import rospy
 import torch
-from typing import Literal
+from fabrics_sim.fabrics.kuka_allegro_pose_allhand_fabric import (
+    KukaAllegroPoseAllHandFabric,
+)
 
 # Import from the fabrics_sim package
 from fabrics_sim.fabrics.kuka_allegro_pose_fabric import KukaAllegroPoseFabric
-from fabrics_sim.fabrics.kuka_allegro_pose_allhand_fabric import KukaAllegroPoseAllHandFabric
 from fabrics_sim.integrator.integrators import DisplacementIntegrator
 from fabrics_sim.utils.utils import capture_fabric, initialize_warp
 from fabrics_sim.worlds.world_mesh_model import WorldMeshesModel
@@ -48,6 +51,7 @@ ALLEGRO_NAMES = [
 ]
 
 FABRIC_MODE: Literal["PCA", "ALL"] = "PCA"
+
 
 class IiwaAllegroFabricPublisher:
     def __init__(self):

@@ -4,7 +4,9 @@ import numpy as np
 import rospy
 import torch
 from geometry_msgs.msg import Pose
-from isaacgymenvs.utils.cross_embodiment.camera_extrinsics import ZED_CAMERA_T_R_C, REALSENSE_CAMERA_T_R_C
+from isaacgymenvs.utils.cross_embodiment.camera_extrinsics import (
+    ZED_CAMERA_T_R_C,
+)
 from isaacgymenvs.utils.wandb_utils import restore_file_from_wandb
 from scipy.spatial.transform import Rotation as R
 from sensor_msgs.msg import JointState
@@ -97,15 +99,16 @@ class IsaacFakeRobotNode:
 
         _, CONFIG_PATH = restore_file_from_wandb(
             # "https://wandb.ai/tylerlum/cross_embodiment/groups/2024-10-05_cup_fabric_reset-early_multigpu/files/runs/TOP_4-freq_coll-on_juno1_2_2024-10-07_23-27-58-967674/config_resolved.yaml?runName=TOP_4-freq_coll-on_juno1_2_2024-10-07_23-27-58-967674"
-            "https://wandb.ai/tylerlum/cross_embodiment/groups/2025-01-15_updated_pregrasps_2/files/runs/plate_hard_FORCES_juno2-lo_2025-01-15_11-48-36-651851/config_resolved.yaml?runName=plate_hard_FORCES_juno2-lo_2025-01-15_11-48-36-651851_7xp5thny"
+            "https://wandb.ai/tylerlum/cross_embodiment/groups/2025-01-16_experiments/files/runs/plate_hard_65damp_move1_2025-01-16_00-53-04-618360/config_resolved.yaml?runName=plate_hard_65damp_move1_2025-01-16_00-53-04-618360_2amo0e8y"
         )
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
         self.env = create_env(
             config_path=CONFIG_PATH,
             device=self.device,
-            headless=True,
+            headless=False,
             # headless=False,
-            enable_viewer_sync_at_start=False,
+            enable_viewer_sync_at_start=True,
+            # enable_viewer_sync_at_start=False,
         )
 
         # Set control rate

@@ -4,9 +4,9 @@ import faulthandler
 
 faulthandler.enable()
 
+import functools
 import math
 import struct
-import functools
 import time
 from pathlib import Path
 from typing import Literal, Optional, Tuple
@@ -18,22 +18,19 @@ import sensor_msgs.point_cloud2 as pc2
 import trimesh
 from geometry_msgs.msg import Pose
 from isaacgymenvs.utils.cross_embodiment.camera_extrinsics import (
-    ZED_CAMERA_T_R_C,
-    ZED_CAMERA_T_R_Cptcloud,
     REALSENSE_CAMERA_T_R_C,
+    ZED_CAMERA_T_R_C,
     REALSENSE_CAMERA_T_R_Cptcloud,
+    ZED_CAMERA_T_R_Cptcloud,
 )
 from isaacgymenvs.utils.cross_embodiment.table_constants import (
-    TABLE_X,
-    TABLE_Y,
-    TABLE_Z,
+    TABLE_QW,
     TABLE_QX,
     TABLE_QY,
     TABLE_QZ,
-    TABLE_QW,
-    TABLE_LENGTH_X,
-    TABLE_LENGTH_Y,
-    TABLE_LENGTH_Z,
+    TABLE_X,
+    TABLE_Y,
+    TABLE_Z,
 )
 from scipy.spatial.transform import Rotation as R
 from sensor_msgs.msg import JointState, PointCloud2
@@ -442,9 +439,9 @@ class VisualizationNode:
             DEFAULT_MESH_PATH = "/juno/u/tylerlum/github_repos/cross_embodiment_ros/kiri_meshes/cup_ycbv/textured.obj"
             object_mesh_path = DEFAULT_MESH_PATH
             rospy.logwarn(f"Using default object mesh: {object_mesh_path}")
-        assert isinstance(object_mesh_path, str), (
-            f"object_mesh_path: {object_mesh_path}"
-        )
+        assert isinstance(
+            object_mesh_path, str
+        ), f"object_mesh_path: {object_mesh_path}"
         rospy.loginfo("~" * 80)
         rospy.loginfo(f"object_mesh_path: {object_mesh_path}")
         rospy.loginfo("~" * 80 + "\n")
@@ -644,9 +641,9 @@ class VisualizationNode:
             if p.getJointInfo(robot, i)[2] != p.JOINT_FIXED
         ]
         num_actuatable_joints = len(actuatable_joint_idxs)
-        assert num_actuatable_joints == 23, (
-            f"num_actuatable_joints: {num_actuatable_joints}"
-        )
+        assert (
+            num_actuatable_joints == 23
+        ), f"num_actuatable_joints: {num_actuatable_joints}"
 
         for i, joint_idx in enumerate(actuatable_joint_idxs):
             p.resetJointState(robot, joint_idx, q[i])
@@ -659,9 +656,9 @@ class VisualizationNode:
             if p.getJointInfo(robot, i)[2] != p.JOINT_FIXED
         ]
         num_actuatable_joints = len(actuatable_joint_idxs)
-        assert num_actuatable_joints == 23, (
-            f"num_actuatable_joints: {num_actuatable_joints}"
-        )
+        assert (
+            num_actuatable_joints == 23
+        ), f"num_actuatable_joints: {num_actuatable_joints}"
 
         q = np.zeros(num_actuatable_joints)
         for i, joint_idx in enumerate(actuatable_joint_idxs):

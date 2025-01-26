@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 
 from pathlib import Path
+
 import numpy as np
 import rospy
 from sensor_msgs.msg import JointState
@@ -33,6 +34,7 @@ ALLEGRO_NAMES = [
     "allegro_joint_15",
 ]
 
+
 class MoveRobotToTrajectoryStart:
     def __init__(self):
         # Initialize ROS node
@@ -41,7 +43,7 @@ class MoveRobotToTrajectoryStart:
         # Initial joint positions
         self.init_iiwa_joint_pos = None
         self.init_allegro_joint_pos = None
-        
+
         # Subscribers
         self.iiwa_sub = rospy.Subscriber(
             "/iiwa/joint_states", JointState, self.iiwa_joint_state_callback
@@ -51,7 +53,9 @@ class MoveRobotToTrajectoryStart:
         )
 
         # Publishers
-        self.iiwa_cmd_pub = rospy.Publisher("/iiwa/joint_cmd", JointState, queue_size=10)
+        self.iiwa_cmd_pub = rospy.Publisher(
+            "/iiwa/joint_cmd", JointState, queue_size=10
+        )
         self.allegro_cmd_pub = rospy.Publisher(
             "/allegroHand_0/joint_cmd", JointState, queue_size=10
         )
@@ -63,7 +67,9 @@ class MoveRobotToTrajectoryStart:
         )
         data = np.load(self.filepath)
         self.target_q = data["qs"][0]  # Get first configuration
-        assert self.target_q.shape == (23,), f"Expected 23 joints, got {self.target_q.shape}"
+        assert self.target_q.shape == (
+            23,
+        ), f"Expected 23 joints, got {self.target_q.shape}"
 
         # Parameters
         self.rate = rospy.Rate(60)  # 60 Hz
@@ -81,11 +87,16 @@ class MoveRobotToTrajectoryStart:
     def allegro_joint_state_callback(self, msg: JointState) -> None:
         if self.init_allegro_joint_pos is None:
             self.init_allegro_joint_pos = np.array(msg.position)
-            rospy.loginfo(f"Got initial Allegro positions: {self.init_allegro_joint_pos}")
+            rospy.loginfo(
+                f"Got initial Allegro positions: {self.init_allegro_joint_pos}"
+            )
 
     def get_initial_joint_positions(self):
         while not rospy.is_shutdown():
-            if self.init_iiwa_joint_pos is not None and self.init_allegro_joint_pos is not None:
+            if (
+                self.init_iiwa_joint_pos is not None
+                and self.init_allegro_joint_pos is not None
+            ):
                 rospy.loginfo("Got all initial joint positions")
                 break
             rospy.loginfo("Waiting for initial joint positions...")
@@ -99,12 +110,12 @@ class MoveRobotToTrajectoryStart:
         while not rospy.is_shutdown():
             current_time = rospy.Time.now()
             elapsed_time = (current_time - start_time).to_sec()
-            
+
             # Wait for STATIONARY_TIME before moving
             if elapsed_time < self.STATIONARY_TIME:
                 rospy.loginfo_throttle(
                     1.0,
-                    f"Holding position for {self.STATIONARY_TIME - elapsed_time:.1f} more seconds"
+                    f"Holding position for {self.STATIONARY_TIME - elapsed_time:.1f} more seconds",
                 )
                 current_q = init_q
             else:
@@ -115,7 +126,7 @@ class MoveRobotToTrajectoryStart:
 
                 if alpha >= 1.0:
                     rospy.loginfo_throttle(1.0, "Reached target position")
-            
+
             # Publish IIWA command
             iiwa_msg = JointState()
             iiwa_msg.header.stamp = current_time
@@ -140,13 +151,14 @@ class MoveRobotToTrajectoryStart:
                 rospy.loginfo("\n" + "=" * 80)
                 rospy.loginfo("SLOW")
                 rospy.loginfo("=" * 80 + "\n")
-            
+
             rospy.loginfo(
                 f"Publishing ({np.round(time_since_last_publish * 1000)} ms, {np.round(1./time_since_last_publish)} Hz)"
             )
-            
+
             last_publish_time = current_time
             self.rate.sleep()
+
 
 if __name__ == "__main__":
     try:

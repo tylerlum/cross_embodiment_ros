@@ -1,9 +1,9 @@
 #!/usr/bin/env python
 
 import copy
-from pathlib import Path
-from typing import Optional, Tuple, Literal
 import functools
+from pathlib import Path
+from typing import Literal, Optional, Tuple
 
 import numpy as np
 import rospy
@@ -11,8 +11,8 @@ import torch
 from geometry_msgs.msg import Pose
 from isaacgym.torch_utils import to_torch
 from isaacgymenvs.utils.cross_embodiment.camera_extrinsics import (
-    ZED_CAMERA_T_R_C,
     REALSENSE_CAMERA_T_R_C,
+    ZED_CAMERA_T_R_C,
 )
 from isaacgymenvs.utils.cross_embodiment.constants import (
     NUM_XYZ,
@@ -131,7 +131,6 @@ class RLPolicyNode:
             # "https://wandb.ai/tylerlum/cross_embodiment/groups/2025-01-14_updated_pregrasps/files/runs/ladel_hard_scoop_move1_2025-01-14_23-37-10-016140/config_resolved.yaml?runName=ladel_hard_scoop_move1_2025-01-14_23-37-10-016140_lq616xtz"
             # "https://wandb.ai/tylerlum/cross_embodiment/groups/2025-01-14_updated_pregrasps/files/runs/plate_hard_juno2_2025-01-14_23-34-23-000027/config_resolved.yaml?runName=plate_hard_juno2_2025-01-14_23-34-23-000027_435jouzp"
             # "https://wandb.ai/tylerlum/cross_embodiment/groups/2025-01-15_updated_pregrasps_2/files/runs/plate_hard_FORCES_juno2-lo_2025-01-15_11-48-36-651851/config_resolved.yaml?runName=plate_hard_FORCES_juno2-lo_2025-01-15_11-48-36-651851_7xp5thny"
-
             # 2025-01-16
             # "https://wandb.ai/tylerlum/cross_embodiment/groups/2025-01-15_updated_pregrasps_2/files/runs/ladel_hard_scoop_FORCES_juno2-lo_2025-01-15_11-48-35-403864/config_resolved.yaml?runName=ladel_hard_scoop_FORCES_juno2-lo_2025-01-15_11-48-35-403864_vi1sft9j"
             "https://wandb.ai/tylerlum/cross_embodiment/groups/2025-01-16_experiments/files/runs/plate_hard_65damp_move1_2025-01-16_00-53-04-618360/config_resolved.yaml?runName=plate_hard_65damp_move1_2025-01-16_00-53-04-618360_2amo0e8y"
@@ -144,7 +143,6 @@ class RLPolicyNode:
             # "https://wandb.ai/tylerlum/cross_embodiment/groups/2025-01-14_updated_pregrasps/files/runs/ladel_hard_scoop_move1_2025-01-14_23-37-10-016140/nn/best.pth?runName=ladel_hard_scoop_move1_2025-01-14_23-37-10-016140_lq616xtz"
             # "https://wandb.ai/tylerlum/cross_embodiment/groups/2025-01-14_updated_pregrasps/files/runs/plate_hard_juno2_2025-01-14_23-34-23-000027/nn/best.pth?runName=plate_hard_juno2_2025-01-14_23-34-23-000027_435jouzp"
             # "https://wandb.ai/tylerlum/cross_embodiment/groups/2025-01-15_updated_pregrasps_2/files/runs/plate_hard_FORCES_juno2-lo_2025-01-15_11-48-36-651851/nn/best.pth?runName=plate_hard_FORCES_juno2-lo_2025-01-15_11-48-36-651851_7xp5thny"
-
             # 2025-01-16
             # "https://wandb.ai/tylerlum/cross_embodiment/groups/2025-01-15_updated_pregrasps_2/files/runs/ladel_hard_scoop_FORCES_juno2-lo_2025-01-15_11-48-35-403864/nn/best.pth?runName=ladel_hard_scoop_FORCES_juno2-lo_2025-01-15_11-48-35-403864_vi1sft9j"
             "https://wandb.ai/tylerlum/cross_embodiment/groups/2025-01-16_experiments/files/runs/plate_hard_65damp_move1_2025-01-16_00-53-04-618360/nn/best.pth?runName=plate_hard_65damp_move1_2025-01-16_00-53-04-618360_2amo0e8y"
@@ -543,7 +541,9 @@ class RLPolicyNode:
                 assert_equals(obs.shape, (1, self.num_observations))
 
                 # Get the normalized action from the RL player
-                normalized_action = self.player.get_normalized_action(obs=obs, deterministic_actions=False)
+                normalized_action = self.player.get_normalized_action(
+                    obs=obs, deterministic_actions=False
+                )
                 # normalized_action = torch.zeros(1, self.num_actions, device=self.device)
                 assert_equals(normalized_action.shape, (1, self.num_actions))
 

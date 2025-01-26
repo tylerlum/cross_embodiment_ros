@@ -1,16 +1,16 @@
 #!/usr/bin/env python
 
+import functools
 from pathlib import Path
 from typing import Literal
-import functools
 
 import numpy as np
 import rospy
 import torch
 from geometry_msgs.msg import Pose
 from isaacgymenvs.utils.cross_embodiment.camera_extrinsics import (
-    ZED_CAMERA_T_R_C,
     REALSENSE_CAMERA_T_R_C,
+    ZED_CAMERA_T_R_C,
 )
 from isaacgymenvs.utils.cross_embodiment.vec_olivia_reference import (
     VecOliviaReferenceMotion,
@@ -30,7 +30,6 @@ class GoalObjectPosePublisher:
 
         MODE: Literal["trajectory", "position"] = "trajectory"
         if MODE == "trajectory":
-
             # Set up VecOliviaReferenceMotion
             # TASK_NAME = "snackbox_pivot_hard_onestep"
             # TASK_NAME = "ladel_hard_scoop"

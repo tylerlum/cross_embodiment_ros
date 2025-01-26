@@ -1,20 +1,20 @@
-import os
+from dataclasses import dataclass
 from typing import Optional
 
 import numpy as np
 import torch
 from gym import spaces
-
-from rl_player_utils import read_cfg
 from simple_rl.ppo_agent import PpoConfig
 from simple_rl.ppo_player import PlayerConfig, PpoPlayer
 from simple_rl.utils.dict_to_dataclass import dict_to_dataclass
 from simple_rl.utils.network import NetworkConfig
-from dataclasses import dataclass
+
+from rl_player_utils import read_cfg
 
 
 def assert_equals(a, b):
     assert a == b, f"{a} != {b}"
+
 
 @dataclass
 class DummyEnv:
@@ -53,9 +53,7 @@ class RlPlayer:
         self._run_sanity_checks()
         self.player = self.create_rl_player(checkpoint_path=checkpoint_path)
 
-    def create_rl_player(
-        self, checkpoint_path: Optional[str]
-    ) -> PpoPlayer:
+    def create_rl_player(self, checkpoint_path: Optional[str]) -> PpoPlayer:
         train_params = self.cfg["train"]
         network_config = dict_to_dataclass(train_params["network"], NetworkConfig)
         player_config = dict_to_dataclass(train_params["player"], PlayerConfig)

@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 
 from pathlib import Path
+
 import numpy as np
 import rospy
 from sensor_msgs.msg import JointState
