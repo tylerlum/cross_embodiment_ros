@@ -267,8 +267,8 @@ def main():
     )
 
     # Set control rate
-    dt = env.control_dt
-    rate_hz = 1 / dt
+    control_dt = env.control_dt
+    sim_dt = env.sim_dt
 
     """
     Fabric
@@ -299,7 +299,7 @@ def main():
     fabric = fabric_class(
         batch_size=num_envs,
         device=device,
-        timestep=dt,
+        timestep=sim_dt,
         graph_capturable=True,
     )
     fabric_integrator = DisplacementIntegrator(fabric)
@@ -341,7 +341,7 @@ def main():
         q=fabric_q,
         qd=fabric_qd,
         qdd=fabric_qdd,
-        timestep=dt,
+        timestep=sim_dt,
         fabric_integrator=fabric_integrator,
         inputs=fabric_inputs,
         device=device,
@@ -395,12 +395,6 @@ def main():
     )
 
     # ROS rate
-    # rate_hz = 15
-    # rate_hz = 60
-    control_dt = (
-        player.cfg["task"]["env"]["controlFrequencyInv"]
-        * player.cfg["task"]["sim"]["dt"]
-    )
 
     # Define limits for palm and hand targets
     palm_mins = torch.tensor([0.0, -0.7, 0, -3.1416, -3.1416, -3.1416], device=device)
@@ -585,7 +579,18 @@ def main():
         Step env
         """
         action = fabric_q.clone()
-        env.step_no_fabric(action, set_dof_pos_targets=True)
+
+        real_control_freq_inv = env.control_freq_inv
+        for i in range(real_control_freq_inv):
+            on_last_step = (i == real_control_freq_inv - 1)
+            run_post_physics_step = on_last_step
+            env.step_no_fabric(action, set_dof_pos_targets=True, control_freq_inv=1, run_post_physics_step=run_post_physics_step)
+            if not on_last_step:
+                fabric_cuda_graph.replay()
+                fabric_q.copy_(fabric_q_new)
+                fabric_qd.copy_(fabric_qd_new)
+                fabric_qdd.copy_(fabric_qdd_new)
+                action = fabric_q.clone()
 
         right_robot_dof_pos = env.right_robot_dof_pos[0]
         right_robot_dof_vel = env.right_robot_dof_vel[0]
