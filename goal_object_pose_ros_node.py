@@ -52,7 +52,7 @@ class GoalObjectPosePublisher:
             )
 
             self.T_C_O_list = self.extract_object_poses()
-            self.N_STEPS_PER_UPDATE = 4
+            self.N_STEPS_PER_UPDATE = 2
 
             # Extend list
             new_list = []
@@ -158,7 +158,9 @@ class GoalObjectPosePublisher:
 
     def run(self):
         while not rospy.is_shutdown():
-            rospy.loginfo("Publishing goal object poses at 60Hz to /goal_object_pose")
+            rospy.loginfo(
+                f"Publishing goal object poses at {self.rate_hz}Hz to /goal_object_pose"
+            )
             self.publish_pose()
             self.rate.sleep()
 
