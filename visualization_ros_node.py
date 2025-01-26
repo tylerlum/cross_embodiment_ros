@@ -31,6 +31,9 @@ from isaacgymenvs.utils.cross_embodiment.table_constants import (
     TABLE_QY,
     TABLE_QZ,
     TABLE_QW,
+    TABLE_LENGTH_X,
+    TABLE_LENGTH_Y,
+    TABLE_LENGTH_Z,
 )
 from scipy.spatial.transform import Rotation as R
 from sensor_msgs.msg import JointState, PointCloud2
@@ -44,6 +47,7 @@ NUM_HAND_JOINTS = 16
 BLUE_TRANSLUCENT_RGBA = [0, 0, 1, 0.5]
 RED_TRANSLUCENT_RGBA = [1, 0, 0, 0.2]
 GREEN_TRANSLUCENT_RGBA = [0, 1, 0, 0.5]
+BLACK_TRANSLUCENT_RGBA = [0, 0, 0, 0.5]
 
 BLUE_RGB = [0, 0, 1]
 RED_RGB = [1, 0, 0]
@@ -84,6 +88,33 @@ def add_cuboid(halfExtents, position, orientation, rgbaColor=RED_TRANSLUCENT_RGB
         baseOrientation=orientation,
     )
     return cuboidId
+
+
+def add_sphere(
+    radius: float,
+    position: np.ndarray,
+    rgbaColor: Tuple[float, float, float, float] = BLUE_RGBA,
+):
+    # Create a visual shape for the sphere
+    visualShapeId = p.createVisualShape(
+        shapeType=p.GEOM_SPHERE, radius=radius, rgbaColor=rgbaColor
+    )  # Blue color
+
+    # Create a collision shape for the sphere
+    collisionShapeId = p.createCollisionShape(shapeType=p.GEOM_SPHERE, radius=radius)
+
+    # Create the sphere as a rigid body
+    sphereId = p.createMultiBody(
+        baseMass=1,  # Mass of the sphere
+        baseCollisionShapeIndex=collisionShapeId,
+        baseVisualShapeIndex=visualShapeId,
+        basePosition=position,
+    )  # Initial position (x, y, z)
+    return sphereId
+
+
+def move_sphere(sphereId, position):
+    p.resetBasePositionAndOrientation(sphereId, position, [0, 0, 0, 1])
 
 
 def create_transform(
@@ -195,14 +226,26 @@ def draw_colored_point_cloud(
 
     # Extract colors from the point cloud
     point_cloud_raw_colors = point_cloud_and_colors[:, 3]
-    point_cloud_colors = [rgb_to_float(color) for color in point_cloud_raw_colors]
+    point_cloud_colors = np.array(
+        [rgb_to_float(color) for color in point_cloud_raw_colors]
+    )
+
+    FILTER_POINT_CLOUD = False
+    if FILTER_POINT_CLOUD:
+        # idxs = (point_cloud_R[:, 0] > 0) & (point_cloud_R[:, 1] < 0)
+        idxs = (point_cloud_R[:, 0] > 0) & (point_cloud_R[:, 1] < -0.2)
+        point_cloud_R = point_cloud_R[idxs]
+        point_cloud_colors = point_cloud_colors[idxs]
+
     num_points = len(point_cloud_colors)
 
     # Downsample if too many points
     MAX_POINTS = 100_000  # TODO: Tune
     if num_points > MAX_POINTS:
         downsample_factor = math.ceil(num_points / MAX_POINTS)
-        rospy.logwarn(f"num_points: {num_points} is greater than MAX_POINTS: {MAX_POINTS}, downsample_factor: {downsample_factor}")
+        rospy.logwarn(
+            f"num_points: {num_points} is greater than MAX_POINTS: {MAX_POINTS}, downsample_factor: {downsample_factor}"
+        )
         point_cloud_R = point_cloud_R[::downsample_factor]
         point_cloud_colors = point_cloud_colors[::downsample_factor]
 
@@ -334,8 +377,39 @@ class VisualizationNode:
             "/juno/u/tylerlum/github_repos/fabrics-sim/src/fabrics_sim/models/robots/urdf/kuka_allegro/kuka_allegro.urdf"
         )
         assert robot_urdf_path.exists(), f"robot_urdf_path not found: {robot_urdf_path}"
-        self.robot_id = p.loadURDF(str(robot_urdf_path), useFixedBase=True)
-        self.robot_cmd_id = p.loadURDF(str(robot_urdf_path), useFixedBase=True)
+
+        # WARNING: After extensive testing, we find that the Allegro hand robot in the real world
+        #          is about 1.2cm lower than the simulated Allegro hand for most joint angles.
+        #          This difference is severe enough to cause low-profile manipulation tasks to fail
+        #          Thus, we manually offset the robot base by 1.2cm in the z-direction.
+        # MANUAL_OFFSET_ROBOT_Z = -0.007
+        MANUAL_OFFSET_ROBOT_Z = -0.012
+        self.robot_id = p.loadURDF(
+            str(robot_urdf_path),
+            useFixedBase=True,
+            basePosition=[0, 0, MANUAL_OFFSET_ROBOT_Z],
+            baseOrientation=[0, 0, 0, 1],
+        )
+        self.robot_cmd_id = p.loadURDF(
+            str(robot_urdf_path),
+            useFixedBase=True,
+            basePosition=[0, 0, MANUAL_OFFSET_ROBOT_Z],
+            baseOrientation=[0, 0, 0, 1],
+        )
+
+        # HACK: REMOVE THIS
+        claire_robot_urdf_path = Path(
+            "/juno/u/oliviayl/repos/cross_embodiment/real_robot_ros/kuka_iiwa/kuka_python/kuka_python/resources/iiwa14_with_eef.urdf"
+        )
+        assert claire_robot_urdf_path.exists(), (
+            f"claire_robot_urdf_path not found: {claire_robot_urdf_path}"
+        )
+        self.claire_robot_id = p.loadURDF(
+            str(claire_robot_urdf_path),
+            useFixedBase=True,
+            basePosition=[0, 0, MANUAL_OFFSET_ROBOT_Z],
+            baseOrientation=[0, 0, 0, 1],
+        )
 
         # Load the scene mesh
         LOAD_SCENE_MESH = False
@@ -377,17 +451,24 @@ class VisualizationNode:
                 basePosition=[x, y, z],
                 baseOrientation=[qx, qy, qz, qw],
             )
-        else:
-            table_urdf_path = Path(
-                "/juno/u/tylerlum/github_repos/bidexhands_isaacgymenvs/assets/urdf/table/table.urdf"
-            )
-            _table_id = p.loadURDF(
-                str(table_urdf_path),
-                useFixedBase=True,
-                # basePosition=[TABLE_X, TABLE_Y, TABLE_Z],
-                basePosition=[TABLE_X, TABLE_Y, TABLE_Z + 0],
-                baseOrientation=[TABLE_QX, TABLE_QY, TABLE_QZ, TABLE_QW],
-            )
+
+        table_urdf_path = Path(
+            "/juno/u/tylerlum/github_repos/bidexhands_isaacgymenvs/assets/urdf/table/table.urdf"
+        )
+        _table_id = p.loadURDF(
+            str(table_urdf_path),
+            useFixedBase=True,
+            # basePosition=[TABLE_X, TABLE_Y, TABLE_Z],
+            basePosition=[TABLE_X, TABLE_Y, TABLE_Z + 0],
+            baseOrientation=[TABLE_QX, TABLE_QY, TABLE_QZ, TABLE_QW],
+        )
+
+        # Make the table black transparent
+        # Change the color of each link (including the base)
+        # for link_index in range(-1, p.getNumJoints(_table_id)):  # -1 is for the base
+        #     p.changeVisualShape(
+        #         _table_id, link_index, rgbaColor=BLACK_TRANSLUCENT_RGBA
+        #     )
 
         # Load the object mesh
         FAR_AWAY_OBJECT_POSITION = np.ones(3)
@@ -402,9 +483,9 @@ class VisualizationNode:
             )
             object_mesh_path = DEFAULT_MESH_PATH
             rospy.logwarn(f"Using default object mesh: {object_mesh_path}")
-        assert isinstance(
-            object_mesh_path, str
-        ), f"object_mesh_path: {object_mesh_path}"
+        assert isinstance(object_mesh_path, str), (
+            f"object_mesh_path: {object_mesh_path}"
+        )
         rospy.loginfo("~" * 80)
         rospy.loginfo(f"object_mesh_path: {object_mesh_path}")
         rospy.loginfo("~" * 80 + "\n")
@@ -475,10 +556,36 @@ class VisualizationNode:
         )
         p.changeVisualShape(self.goal_object_id, -1, rgbaColor=GREEN_TRANSLUCENT_RGBA)
 
+        # Make the robot red
+        # Change the color of each link (including the base)
+        robot_visual_data = p.getVisualShapeData(self.robot_id)
+        for visual_shape in robot_visual_data:
+            link_idx = visual_shape[1]
+            rgba = visual_shape[7]  # RGBA color
+            new_rgba = (rgba[0], rgba[1], rgba[2], 0.5)
+
+            if link_idx == -1:  # Base link
+                p.changeVisualShape(self.robot_id, link_idx, rgbaColor=new_rgba)
+            else:
+                p.changeVisualShape(self.robot_id, link_idx, rgbaColor=new_rgba)
+
+        claire_robot_visual_data = p.getVisualShapeData(self.claire_robot_id)
+        for visual_shape in claire_robot_visual_data:
+            link_idx = visual_shape[1]
+            rgba = visual_shape[7]  # RGBA color
+            new_rgba = (rgba[0], rgba[1], rgba[2], 0.5)
+            p.changeVisualShape(self.claire_robot_id, link_idx, rgbaColor=new_rgba)
+
+        # for link_index in range(-1, p.getNumJoints(self.robot_id)):  # -1 is for the base
+        #     p.changeVisualShape(
+        #         self.robot_id, link_index, rgbaColor=RED_TRANSLUCENT_RGBA
+        #     )
+
         # Make the robot blue
         # Change the color of each link (including the base)
-        num_joints = p.getNumJoints(self.robot_id)
-        for link_index in range(-1, num_joints):  # -1 is for the base
+        for link_index in range(
+            -1, p.getNumJoints(self.robot_cmd_id)
+        ):  # -1 is for the base
             p.changeVisualShape(
                 self.robot_cmd_id, link_index, rgbaColor=BLUE_TRANSLUCENT_RGBA
             )
@@ -491,6 +598,7 @@ class VisualizationNode:
         DEFAULT_Q = np.concatenate([DEFAULT_ARM_Q, DEFAULT_HAND_Q])
         self.set_robot_state(self.robot_id, DEFAULT_Q)
         self.set_robot_state(self.robot_cmd_id, DEFAULT_Q)
+        self.set_claire_robot_state(self.claire_robot_id, DEFAULT_ARM_Q)
 
         # Keep track of the link names and IDs
         self.robot_link_name_to_id = {}
@@ -543,6 +651,60 @@ class VisualizationNode:
         else:
             raise ValueError(f"Invalid CAMERA_LINES_TO_DRAW: {CAMERA_LINES_TO_DRAW}")
 
+        # Draw line from each finger to the table
+        self.FINGERTIP_SPHERE_RADIUS = 0.01
+        self.index_sphere = add_sphere(
+            radius=self.FINGERTIP_SPHERE_RADIUS,
+            position=self.robot_index_tip_com,
+            rgbaColor=RED_TRANSLUCENT_RGBA,
+        )
+        self.middle_sphere = add_sphere(
+            radius=self.FINGERTIP_SPHERE_RADIUS,
+            position=self.robot_middle_tip_com,
+            rgbaColor=RED_TRANSLUCENT_RGBA,
+        )
+        self.ring_sphere = add_sphere(
+            radius=self.FINGERTIP_SPHERE_RADIUS,
+            position=self.robot_ring_tip_com,
+            rgbaColor=RED_TRANSLUCENT_RGBA,
+        )
+        self.thumb_sphere = add_sphere(
+            radius=self.FINGERTIP_SPHERE_RADIUS,
+            position=self.robot_thumb_tip_com,
+            rgbaColor=RED_TRANSLUCENT_RGBA,
+        )
+        self.table_index_sphere = add_sphere(
+            radius=self.FINGERTIP_SPHERE_RADIUS,
+            position=self.table_under_index_tip_com,
+            rgbaColor=BLUE_TRANSLUCENT_RGBA,
+        )
+        self.table_middle_sphere = add_sphere(
+            radius=self.FINGERTIP_SPHERE_RADIUS,
+            position=self.table_under_middle_tip_com,
+            rgbaColor=BLUE_TRANSLUCENT_RGBA,
+        )
+        self.table_ring_sphere = add_sphere(
+            radius=self.FINGERTIP_SPHERE_RADIUS,
+            position=self.table_under_ring_tip_com,
+            rgbaColor=BLUE_TRANSLUCENT_RGBA,
+        )
+        self.table_thumb_sphere = add_sphere(
+            radius=self.FINGERTIP_SPHERE_RADIUS,
+            position=self.table_under_thumb_tip_com,
+            rgbaColor=BLUE_TRANSLUCENT_RGBA,
+        )
+        self.OBJECT_SPHERE_RADIUS = 0.05
+        self.object_sphere = add_sphere(
+            radius=self.OBJECT_SPHERE_RADIUS,
+            position=self.object_com,
+            rgbaColor=RED_TRANSLUCENT_RGBA,
+        )
+        self.table_object_sphere = add_sphere(
+            radius=self.OBJECT_SPHERE_RADIUS,
+            position=self.table_under_object_com,
+            rgbaColor=BLUE_TRANSLUCENT_RGBA,
+        )
+
         # Set the camera parameters
         self.set_pybullet_camera()
 
@@ -550,21 +712,21 @@ class VisualizationNode:
         p.setGravity(0, 0, -9.81)
 
         # Draw the world
-        world_dict = world_dict_robot_frame
-        for object_name, object_dict in world_dict.items():
-            xyz_qxyzw = np.array([float(x) for x in object_dict["transform"].split()])
-            scaling = np.array([float(x) for x in object_dict["scaling"].split()])
-            assert len(xyz_qxyzw) == 7, f"xyz_qxyzw: {xyz_qxyzw}"
-            assert len(scaling) == 3, f"scaling: {scaling}"
+        # world_dict = world_dict_robot_frame
+        # for object_name, object_dict in world_dict.items():
+        #     xyz_qxyzw = np.array([float(x) for x in object_dict["transform"].split()])
+        #     scaling = np.array([float(x) for x in object_dict["scaling"].split()])
+        #     assert len(xyz_qxyzw) == 7, f"xyz_qxyzw: {xyz_qxyzw}"
+        #     assert len(scaling) == 3, f"scaling: {scaling}"
 
-            half_extents = [x / 2 for x in scaling]
-            object_pos = xyz_qxyzw[:3]
-            object_quat_xyzw = xyz_qxyzw[3:]
-            add_cuboid(
-                halfExtents=half_extents,
-                position=object_pos,
-                orientation=object_quat_xyzw,
-            )
+        #     half_extents = [x / 2 for x in scaling]
+        #     object_pos = xyz_qxyzw[:3]
+        #     object_quat_xyzw = xyz_qxyzw[3:]
+        #     add_cuboid(
+        #         halfExtents=half_extents,
+        #         position=object_pos,
+        #         orientation=object_quat_xyzw,
+        #     )
 
     def set_pybullet_camera(
         self,
@@ -591,9 +753,26 @@ class VisualizationNode:
             if p.getJointInfo(robot, i)[2] != p.JOINT_FIXED
         ]
         num_actuatable_joints = len(actuatable_joint_idxs)
-        assert (
-            num_actuatable_joints == 23
-        ), f"num_actuatable_joints: {num_actuatable_joints}"
+        assert num_actuatable_joints == 23, (
+            f"num_actuatable_joints: {num_actuatable_joints}"
+        )
+
+        for i, joint_idx in enumerate(actuatable_joint_idxs):
+            p.resetJointState(robot, joint_idx, q[i])
+
+    def set_claire_robot_state(self, robot, q: np.ndarray) -> None:
+        assert q.shape == (7,)
+
+        num_total_joints = p.getNumJoints(robot)
+        actuatable_joint_idxs = [
+            i
+            for i in range(num_total_joints)
+            if p.getJointInfo(robot, i)[2] != p.JOINT_FIXED
+        ]
+        num_actuatable_joints = len(actuatable_joint_idxs)
+        assert num_actuatable_joints == 7, (
+            f"num_actuatable_joints: {num_actuatable_joints}"
+        )
 
         for i, joint_idx in enumerate(actuatable_joint_idxs):
             p.resetJointState(robot, joint_idx, q[i])
@@ -606,9 +785,9 @@ class VisualizationNode:
             if p.getJointInfo(robot, i)[2] != p.JOINT_FIXED
         ]
         num_actuatable_joints = len(actuatable_joint_idxs)
-        assert (
-            num_actuatable_joints == 23
-        ), f"num_actuatable_joints: {num_actuatable_joints}"
+        assert num_actuatable_joints == 23, (
+            f"num_actuatable_joints: {num_actuatable_joints}"
+        )
 
         q = np.zeros(num_actuatable_joints)
         for i, joint_idx in enumerate(actuatable_joint_idxs):
@@ -733,7 +912,7 @@ class VisualizationNode:
         q_state = np.concatenate([iiwa_joint_state, allegro_joint_state])
         self.set_robot_state(self.robot_cmd_id, q_cmd)
         self.set_robot_state(self.robot_id, q_state)
-
+        self.set_claire_robot_state(self.claire_robot_id, iiwa_joint_state)
         # Update the hand target
         visualize_transform(
             xyz=palm_target[:3],
@@ -790,6 +969,8 @@ class VisualizationNode:
         T_C_G = goal_object_pose
         T_R_G = self.goal_T_R_C @ T_C_G
         goal_object_pos = T_R_G[:3, 3]
+        # WARNING HACK TODO
+        # goal_object_pos[2] += 0.005
         goal_object_quat_xyzw = R.from_matrix(T_R_G[:3, :3]).as_quat()
         p.resetBasePositionAndOrientation(
             self.goal_object_id, goal_object_pos, goal_object_quat_xyzw
@@ -807,8 +988,66 @@ class VisualizationNode:
             lines=self.goal_object_lines,
         )
 
+        # Update the fingertip spheres
+        move_sphere(
+            sphereId=self.index_sphere,
+            position=self.robot_index_tip_com,
+        )
+        move_sphere(
+            sphereId=self.middle_sphere,
+            position=self.robot_middle_tip_com,
+        )
+        move_sphere(
+            sphereId=self.ring_sphere,
+            position=self.robot_ring_tip_com,
+        )
+        move_sphere(
+            sphereId=self.thumb_sphere,
+            position=self.robot_thumb_tip_com,
+        )
+
+        move_sphere(
+            sphereId=self.table_index_sphere,
+            position=self.table_under_index_tip_com,
+        )
+        move_sphere(
+            sphereId=self.table_middle_sphere,
+            position=self.table_under_middle_tip_com,
+        )
+        move_sphere(
+            sphereId=self.table_ring_sphere,
+            position=self.table_under_ring_tip_com,
+        )
+        move_sphere(
+            sphereId=self.table_thumb_sphere,
+            position=self.table_under_thumb_tip_com,
+        )
+        move_sphere(
+            sphereId=self.table_object_sphere,
+            position=self.table_under_object_com,
+        )
+        move_sphere(
+            sphereId=self.object_sphere,
+            position=self.object_com,
+        )
+
+        rospy.logerr(f"q_state: {q_state}")
+        rospy.logerr(
+            f"index_com_to_table_z: {self.robot_index_tip_com[2] - self.table_under_index_tip_com[2]}"
+        )
+        rospy.logerr(
+            f"middle_com_to_table_z: {self.robot_middle_tip_com[2] - self.table_under_middle_tip_com[2]}"
+        )
+        rospy.logerr(
+            f"ring_com_to_table_z: {self.robot_ring_tip_com[2] - self.table_under_ring_tip_com[2]}"
+        )
+        rospy.logerr(
+            f"thumb_com_to_table_z: {self.robot_thumb_tip_com[2] - self.table_under_thumb_tip_com[2]}"
+        )
+        rospy.logerr("=" * 100 + "\n")
+
         # Update the point cloud
-        LOAD_POINT_CLOUD = False
+        LOAD_POINT_CLOUD = True
         if LOAD_POINT_CLOUD:
             if self.point_cloud_and_colors is not None:
                 draw_colored_point_cloud(
@@ -873,6 +1112,67 @@ class VisualizationNode:
 
         # Disconnect from PyBullet when shutting down
         p.disconnect()
+
+    def get_robot_link_com(self, link_name: str) -> np.ndarray:
+        robot_link_com, *_ = p.getLinkState(
+            self.robot_id,
+            self.robot_link_name_to_id[link_name],
+            computeForwardKinematics=1,
+        )
+        return np.array(robot_link_com)
+
+    @property
+    def robot_index_tip_com(self) -> np.ndarray:
+        return self.get_robot_link_com("index_biotac_tip")
+
+    @property
+    def robot_middle_tip_com(self) -> np.ndarray:
+        return self.get_robot_link_com("middle_biotac_tip")
+
+    @property
+    def robot_ring_tip_com(self) -> np.ndarray:
+        return self.get_robot_link_com("ring_biotac_tip")
+
+    @property
+    def robot_thumb_tip_com(self) -> np.ndarray:
+        return self.get_robot_link_com("thumb_biotac_tip")
+
+    @property
+    def table_under_index_tip_com(self) -> np.ndarray:
+        index_tip_com = self.robot_index_tip_com
+        index_tip_com[2] = TABLE_Z + TABLE_LENGTH_Z / 2
+        return index_tip_com
+
+    @property
+    def table_under_middle_tip_com(self) -> np.ndarray:
+        middle_tip_com = self.robot_middle_tip_com
+        middle_tip_com[2] = TABLE_Z + TABLE_LENGTH_Z / 2
+        return middle_tip_com
+
+    @property
+    def table_under_ring_tip_com(self) -> np.ndarray:
+        ring_tip_com = self.robot_ring_tip_com
+        ring_tip_com[2] = TABLE_Z + TABLE_LENGTH_Z / 2
+        return ring_tip_com
+
+    @property
+    def table_under_thumb_tip_com(self) -> np.ndarray:
+        thumb_tip_com = self.robot_thumb_tip_com
+        thumb_tip_com[2] = TABLE_Z + TABLE_LENGTH_Z / 2
+        return thumb_tip_com
+
+    @property
+    def object_com(self) -> np.ndarray:
+        if self.goal_object_pose is None:
+            return np.zeros(3)
+        pos = self.goal_object_pose[:3, 3]
+        return pos
+
+    @property
+    def table_under_object_com(self) -> np.ndarray:
+        pos = self.object_com
+        pos[2] = TABLE_Z + TABLE_LENGTH_Z / 2
+        return pos
 
     @property
     @functools.lru_cache()
