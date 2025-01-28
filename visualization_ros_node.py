@@ -858,7 +858,7 @@ class VisualizationNode:
         )
 
         # Update the point cloud
-        LOAD_POINT_CLOUD = True
+        LOAD_POINT_CLOUD = False
         if LOAD_POINT_CLOUD:
             if self.point_cloud_and_colors is not None:
                 draw_colored_point_cloud(

@@ -139,7 +139,9 @@ class RLPolicyNode:
             # "https://wandb.ai/tylerlum/cross_embodiment/groups/2025-01-15_updated_pregrasps_2/files/runs/watering_can_move2_2025-01-15_11-45-55-011129/config_resolved.yaml?runName=watering_can_move2_2025-01-15_11-45-55-011129_kb5rd4jf"
 
             # 2025-01-28
-            "https://wandb.ai/tylerlum/cross_embodiment/groups/2025-01-26_new_scene/files/runs/snackbox_pivot_move2_2025-01-26_04-33-44-941499/config_resolved.yaml?runName=snackbox_pivot_move2_2025-01-26_04-33-44-941499_v7l0sxlj"
+            # "https://wandb.ai/tylerlum/cross_embodiment/groups/2025-01-26_new_scene/files/runs/snackbox_pivot_move2_2025-01-26_04-33-44-941499/config_resolved.yaml?runName=snackbox_pivot_move2_2025-01-26_04-33-44-941499_v7l0sxlj"
+            "https://wandb.ai/tylerlum/cross_embodiment/groups/2025-01-26_new_scene/files/runs/snackbox_pivotmove_FORCES_NOISE_LOWROBOT_gcloud_2025-01-27_09-20-08-282947/config_resolved.yaml?runName=snackbox_pivotmove_FORCES_NOISE_LOWROBOT_gcloud_2025-01-27_09-20-08-282947_g0w3baca"
+            # "https://wandb.ai/tylerlum/cross_embodiment/groups/2025-01-26_new_scene/files/runs/plate_pivotrack_FORCES_NOISE_65DAMP_gcloud_2025-01-27_09-19-23-114819/config_resolved.yaml?runName=plate_pivotrack_FORCES_NOISE_65DAMP_gcloud_2025-01-27_09-19-23-114819_j3vj176e"
         )
         _, self.checkpoint_path = restore_file_from_wandb(
             # 2025-01-15
@@ -155,7 +157,9 @@ class RLPolicyNode:
             # "https://wandb.ai/tylerlum/cross_embodiment/groups/2025-01-15_updated_pregrasps_2/files/runs/watering_can_move2_2025-01-15_11-45-55-011129/nn/best.pth?runName=watering_can_move2_2025-01-15_11-45-55-011129_kb5rd4jf"
 
             # 2025-01-28
-            "https://wandb.ai/tylerlum/cross_embodiment/groups/2025-01-26_new_scene/files/runs/snackbox_pivot_move2_2025-01-26_04-33-44-941499/nn/best.pth?runName=snackbox_pivot_move2_2025-01-26_04-33-44-941499_v7l0sxlj"
+            # "https://wandb.ai/tylerlum/cross_embodiment/groups/2025-01-26_new_scene/files/runs/snackbox_pivot_move2_2025-01-26_04-33-44-941499/nn/best.pth?runName=snackbox_pivot_move2_2025-01-26_04-33-44-941499_v7l0sxlj"
+            "https://wandb.ai/tylerlum/cross_embodiment/groups/2025-01-26_new_scene/files/runs/snackbox_pivotmove_FORCES_NOISE_LOWROBOT_gcloud_2025-01-27_09-20-08-282947/nn/best.pth?runName=snackbox_pivotmove_FORCES_NOISE_LOWROBOT_gcloud_2025-01-27_09-20-08-282947_g0w3baca"
+            # "https://wandb.ai/tylerlum/cross_embodiment/groups/2025-01-26_new_scene/files/runs/plate_pivotrack_FORCES_NOISE_65DAMP_gcloud_2025-01-27_09-19-23-114819/nn/best.pth?runName=plate_pivotrack_FORCES_NOISE_65DAMP_gcloud_2025-01-27_09-19-23-114819_j3vj176e"
         )
 
         # Create the RL player

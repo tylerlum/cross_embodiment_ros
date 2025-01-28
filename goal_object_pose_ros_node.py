@@ -12,8 +12,9 @@ from isaacgymenvs.utils.cross_embodiment.camera_extrinsics import (
     REALSENSE_CAMERA_T_R_C,
     ZED_CAMERA_T_R_C,
 )
-from isaacgymenvs.utils.cross_embodiment.vec_olivia_reference import (
-    VecOliviaReferenceMotion,
+from isaacgymenvs.utils.cross_embodiment.utils import (
+    read_in_T_list,
+    clip_T_list,
 )
 from scipy.spatial.transform import Rotation as R
 
@@ -25,7 +26,6 @@ class GoalObjectPosePublisher:
         self.pose_pub = rospy.Publisher("/goal_object_pose", Pose, queue_size=1)
         self.rate_hz = 30
         self.rate = rospy.Rate(self.rate_hz)
-
         self.current_index = 0
 
         MODE: Literal["trajectory", "position"] = "trajectory"
@@ -36,29 +36,29 @@ class GoalObjectPosePublisher:
             # TASK_NAME = "plate_hard"
             # TASK_NAME = "watering_can"
 
-            TASK_NAME = "snackbox_pivot"
+            # TASK_NAME = "snackbox_pivot"
+            TASK_NAME = "snackbox_pivotmove"
+            # TASK_NAME = "plate_pivotrack"
 
             TRAJECTORY_FOLDERPATH = Path(
                 f"/juno/u/oliviayl/repos/cross_embodiment/FoundationPose/debug_archive/final_scene/{TASK_NAME}/"
             )
 
             self.data_hz = 30
-            self.trajectory = VecOliviaReferenceMotion(
-                trajectory_folder=TRAJECTORY_FOLDERPATH,
-                hand_folder=None,
-                batch_size=1,
-                device="cuda",
-                dt=1 / self.data_hz,
-            )
+            data_dt = 1 / self.data_hz
 
-            self.T_C_O_list = self.extract_object_poses()
-            self.N_STEPS_PER_UPDATE = 2
+            raw_T_list = torch.from_numpy(read_in_T_list(TRAJECTORY_FOLDERPATH)).float().to("cuda")
+            T_C_Os = clip_T_list(raw_T_list, data_dt).cpu().numpy()
+            self.T_C_O_list = [T_C_Os[i] for i in range(T_C_Os.shape[0])]
 
-            # Extend list
-            new_list = []
-            for T_C_O in self.T_C_O_list:
-                new_list += [T_C_O] * self.N_STEPS_PER_UPDATE
-            self.T_C_O_list = new_list
+            # Control speed of the replay
+            # Data rate is 30Hz
+            # If we publish at 30Hz, we will publish 1x speed
+            # If we publish at 60Hz, we will publish 2x speed
+            # If we publish at 15Hz, we will publish 0.5x speed
+            SPEEDUP_FACTOR = 0.5
+            self.rate_hz = self.data_hz * SPEEDUP_FACTOR
+            self.rate = rospy.Rate(self.rate_hz)
 
             self.N = len(self.T_C_O_list)
 
