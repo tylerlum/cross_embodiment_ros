@@ -13,8 +13,8 @@ from isaacgymenvs.utils.cross_embodiment.camera_extrinsics import (
     ZED_CAMERA_T_R_C,
 )
 from isaacgymenvs.utils.cross_embodiment.utils import (
-    read_in_T_list,
     clip_T_list,
+    read_in_T_list,
 )
 from scipy.spatial.transform import Rotation as R
 
@@ -47,7 +47,11 @@ class GoalObjectPosePublisher:
             self.data_hz = 30
             data_dt = 1 / self.data_hz
 
-            raw_T_list = torch.from_numpy(read_in_T_list(TRAJECTORY_FOLDERPATH)).float().to("cuda")
+            raw_T_list = (
+                torch.from_numpy(read_in_T_list(TRAJECTORY_FOLDERPATH))
+                .float()
+                .to("cuda")
+            )
             T_C_Os = clip_T_list(raw_T_list, data_dt).cpu().numpy()
             self.T_C_O_list = [T_C_Os[i] for i in range(T_C_Os.shape[0])]
 

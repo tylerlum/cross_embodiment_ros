@@ -5,15 +5,8 @@ from typing import List, Literal, Optional, Tuple
 
 import numpy as np
 import torch
-from fabrics_sim.fabrics.kuka_allegro_pose_allhand_fabric import (
-    KukaAllegroPoseAllHandFabric,
-)
 
 # Import from the fabrics_sim package
-from fabrics_sim.fabrics.kuka_allegro_pose_fabric import KukaAllegroPoseFabric
-from fabrics_sim.integrator.integrators import DisplacementIntegrator
-from fabrics_sim.utils.utils import capture_fabric, initialize_warp
-from fabrics_sim.worlds.world_mesh_model import WorldMeshesModel
 from isaacgym.torch_utils import to_torch
 from isaacgymenvs.utils.cross_embodiment.constants import (
     NUM_XYZ,
@@ -42,7 +35,6 @@ from isaacgymenvs.utils.cross_embodiment.utils import (
 )
 from isaacgymenvs.utils.wandb_utils import restore_file_from_wandb
 
-from fabric_world import world_dict_robot_frame
 from rl_player import RlPlayer
 
 FABRIC_MODE: Literal["PCA", "ALL"] = "PCA"
@@ -469,7 +461,8 @@ def main():
         # Get the normalized action from the RL player
         normalized_action = player.get_normalized_action(
             # obs=obs, deterministic_actions=False
-            obs=manually_collected_obs, deterministic_actions=False
+            obs=manually_collected_obs,
+            deterministic_actions=False,
         )
         assert_equals(normalized_action.shape, (1, num_actions))
 
@@ -506,4 +499,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-

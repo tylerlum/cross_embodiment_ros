@@ -157,7 +157,9 @@ class IsaacFakeRobotNode:
             )
 
             self.env.step_no_fabric(
-                action, set_dof_pos_targets=True, control_freq_inv=None if USE_CONTROL_DT else 1
+                action,
+                set_dof_pos_targets=True,
+                control_freq_inv=None if USE_CONTROL_DT else 1,
             )
 
         right_robot_dof_pos = self.env.right_robot_dof_pos[0].detach().cpu().numpy()
