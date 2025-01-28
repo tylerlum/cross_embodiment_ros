@@ -101,7 +101,8 @@ class IsaacFakeRobotNode:
 
         _, CONFIG_PATH = restore_file_from_wandb(
             # "https://wandb.ai/tylerlum/cross_embodiment/groups/2024-10-05_cup_fabric_reset-early_multigpu/files/runs/TOP_4-freq_coll-on_juno1_2_2024-10-07_23-27-58-967674/config_resolved.yaml?runName=TOP_4-freq_coll-on_juno1_2_2024-10-07_23-27-58-967674"
-            "https://wandb.ai/tylerlum/cross_embodiment/groups/2025-01-16_experiments/files/runs/plate_hard_65damp_move1_2025-01-16_00-53-04-618360/config_resolved.yaml?runName=plate_hard_65damp_move1_2025-01-16_00-53-04-618360_2amo0e8y"
+            # "https://wandb.ai/tylerlum/cross_embodiment/groups/2025-01-16_experiments/files/runs/plate_hard_65damp_move1_2025-01-16_00-53-04-618360/config_resolved.yaml?runName=plate_hard_65damp_move1_2025-01-16_00-53-04-618360_2amo0e8y"
+            "https://wandb.ai/tylerlum/cross_embodiment/groups/2025-01-26_new_scene/files/runs/snackbox_pivot_move2_2025-01-26_04-33-44-941499/config_resolved.yaml?runName=snackbox_pivot_move2_2025-01-26_04-33-44-941499_v7l0sxlj"
         )
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
         self.env = create_env(

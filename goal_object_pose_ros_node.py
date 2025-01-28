@@ -23,7 +23,7 @@ class GoalObjectPosePublisher:
         rospy.init_node("goal_object_pose_publisher")
 
         self.pose_pub = rospy.Publisher("/goal_object_pose", Pose, queue_size=1)
-        self.rate_hz = 60
+        self.rate_hz = 30
         self.rate = rospy.Rate(self.rate_hz)
 
         self.current_index = 0
@@ -33,13 +33,13 @@ class GoalObjectPosePublisher:
             # Set up VecOliviaReferenceMotion
             # TASK_NAME = "snackbox_pivot_hard_onestep"
             # TASK_NAME = "ladel_hard_scoop"
-            TASK_NAME = "plate_hard"
+            # TASK_NAME = "plate_hard"
             # TASK_NAME = "watering_can"
 
-            if TASK_NAME == "watering_can":
-                TASK_NAME = "pitcher"
+            TASK_NAME = "snackbox_pivot"
+
             TRAJECTORY_FOLDERPATH = Path(
-                f"/juno/u/oliviayl/repos/cross_embodiment/FoundationPose/debug_archive/pre_final/{TASK_NAME}/"
+                f"/juno/u/oliviayl/repos/cross_embodiment/FoundationPose/debug_archive/final_scene/{TASK_NAME}/"
             )
 
             self.data_hz = 30
