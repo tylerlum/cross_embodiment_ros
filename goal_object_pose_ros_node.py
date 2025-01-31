@@ -37,8 +37,13 @@ class GoalObjectPosePublisher:
             # TASK_NAME = "watering_can"
 
             # TASK_NAME = "snackbox_pivot"
-            TASK_NAME = "snackbox_pivotmove"
+            # TASK_NAME = "snackbox_pivotmove"
             # TASK_NAME = "plate_pivotrack"
+
+            # TASK_NAME = "snackbox_pour"
+            # TASK_NAME = "plate_push"
+            # TASK_NAME = "plate_pivotrack_redo"
+            TASK_NAME = "wateringcan_pour_redo"
 
             TRAJECTORY_FOLDERPATH = Path(
                 f"/juno/u/oliviayl/repos/cross_embodiment/FoundationPose/debug_archive/final_scene/{TASK_NAME}/"
