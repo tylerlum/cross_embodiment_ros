@@ -78,12 +78,10 @@ world_dict_table_frame = {
     },
 }
 
-# TODO: Adjust the table to account for MANUAL_OFFSET_ROBOT_Z
-# SAFETY_BUFFER = 0.01  # MAKE THE TABLE HIGHER
-SAFETY_BUFFER = -0.05  # MAKE THE TABLE HIGHER
+SAFETY_BUFFER = -0.02  # ADJUST THE TABLE HEIGHT AWAY FROM THE ACTUAL
 
 T_O_R = np.eye(4)
-T_O_R[:3, 3] = [-0.15, -0.2, -0.165 + 0.5 * THICKNESS - SAFETY_BUFFER]
+T_O_R[:3, 3] = [-0.15, -0.2, -0.13 - SAFETY_BUFFER]
 T_O_R[:3, :3] = R.from_euler("z", 42, degrees=True).as_matrix()
 
 T_R_O = np.linalg.inv(T_O_R)
@@ -97,3 +95,4 @@ world_dict_robot_frame = {
     }
     for k, v in world_dict_table_frame.items()
 }
+
