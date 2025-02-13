@@ -42,9 +42,24 @@ class RobotTrajectoryPublisher:
 
         # Get trajectory filepath from ROS param
         # TASK_NAME = "snackbox_wallslide_easy_bottom"
-        TASK_NAME = "snackbox_pivot_easy"
+        # TASK_NAME = "snackbox_pivot_easy"
+
+        # TASK_NAME = "snackbox_pour"
+        # TASK_NAME = "snackbox_pivot"
+        # TASK_NAME = "snackbox_push"
+        # TASK_NAME = "snackbox_lift_wall"
+        # TASK_NAME = "snackbox_pushpivot"
+        # TASK_NAME = "snackbox_pushpivotmove"
+        # TASK_NAME = "plate_push"
+        # TASK_NAME = "plate_pivotrack_redo"
+        # TASK_NAME = "plate_rack_wall"
+        # TASK_NAME = "plate_pushpivotrack"
+        TASK_NAME = "wateringcan_pour_redo"
+        # TASK_NAME = "pot_pour_sidegrasp_norm"
+
         self.filepath = Path(
-            f"/juno/u/tylerlum/github_repos/interactive_robot_visualizer/outputs/{TASK_NAME}.npz"
+            # f"/juno/u/tylerlum/github_repos/interactive_robot_visualizer/outputs/{TASK_NAME}.npz"
+            f"/juno/u/tylerlum/github_repos/interactive_robot_visualizer/2025-01-31_outputs/{TASK_NAME}.npz"
         )
 
         # Load trajectory data

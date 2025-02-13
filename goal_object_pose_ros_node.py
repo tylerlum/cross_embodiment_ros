@@ -40,10 +40,24 @@ class GoalObjectPosePublisher:
             # TASK_NAME = "snackbox_pivotmove"
             # TASK_NAME = "plate_pivotrack"
 
-            # TASK_NAME = "snackbox_pour"
             # TASK_NAME = "plate_push"
             # TASK_NAME = "plate_pivotrack_redo"
-            TASK_NAME = "wateringcan_pour_redo"
+            # TASK_NAME = "wateringcan_pour_redo"
+
+            # TASK_NAME = "snackbox_pour_arc"
+            # TASK_NAME = "snackbox_pour"
+            #TASK_NAME = "snackbox_pivot"
+            # TASK_NAME = "snackbox_push"
+            TASK_NAME = "snackbox_lift_wall"
+            # TASK_NAME = "snackbox_pushpivot"
+            # TASK_NAME = "snackbox_pushpivotmove"
+            # TASK_NAME = "snackbox_push"
+            # TASK_NAME = "plate_push"
+            # TASK_NAME = "plate_pivotrack_redo"
+            # TASK_NAME = "plate_rack_wall"
+            # TASK_NAME = "plate_pushpivotrack"
+            # TASK_NAME = "wateringcan_pour_redo"
+            # TASK_NAME = "pot_pour_sidegrasp_norm"
 
             TRAJECTORY_FOLDERPATH = Path(
                 f"/juno/u/oliviayl/repos/cross_embodiment/FoundationPose/debug_archive/final_scene/{TASK_NAME}/"
@@ -66,6 +80,7 @@ class GoalObjectPosePublisher:
             # If we publish at 60Hz, we will publish 2x speed
             # If we publish at 15Hz, we will publish 0.5x speed
             SPEEDUP_FACTOR = 0.5
+            # SPEEDUP_FACTOR = 1.0
             self.rate_hz = self.data_hz * SPEEDUP_FACTOR
             self.rate = rospy.Rate(self.rate_hz)
 
