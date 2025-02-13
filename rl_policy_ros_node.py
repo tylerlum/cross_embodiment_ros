@@ -579,8 +579,8 @@ class RLPolicyNode:
 
                 # Get the normalized action from the RL player
                 normalized_action = self.player.get_normalized_action(
-                    # obs=obs, deterministic_actions=False
-                    obs=obs, deterministic_actions=True
+                    obs=obs, deterministic_actions=False
+                    # obs=obs, deterministic_actions=True
                 )
                 # normalized_action = torch.zeros(1, self.num_actions, device=self.device)
                 assert_equals(normalized_action.shape, (1, self.num_actions))
