@@ -51,15 +51,18 @@ class RobotTrajectoryPublisher:
         # TASK_NAME = "snackbox_pushpivot"
         # TASK_NAME = "snackbox_pushpivotmove"
         # TASK_NAME = "plate_push"
-        # TASK_NAME = "plate_pivotrack_redo"
+        TASK_NAME = "plate_pivotrack_redo"
         # TASK_NAME = "plate_rack_wall"
         # TASK_NAME = "plate_pushpivotrack"
-        TASK_NAME = "wateringcan_pour_redo"
+        # TASK_NAME = "wateringcan_pour_redo"
         # TASK_NAME = "pot_pour_sidegrasp_norm"
+        IDX = "5"
 
         self.filepath = Path(
             # f"/juno/u/tylerlum/github_repos/interactive_robot_visualizer/outputs/{TASK_NAME}.npz"
-            f"/juno/u/tylerlum/github_repos/interactive_robot_visualizer/2025-01-31_outputs/{TASK_NAME}.npz"
+            # f"/juno/u/tylerlum/github_repos/interactive_robot_visualizer/2025-01-31_outputs/{TASK_NAME}.npz"
+            # f"/juno/u/oliviayl/repos/cross_embodiment/FoundationPose/debug_archive/final_scene/{TASK_NAME}/{TASK_NAME}.npz"
+            f"/juno/u/tylerlum/github_repos/interactive_robot_visualizer/2025-03-05_outputs_transformed_replay{IDX}/{TASK_NAME}.npz"
         )
 
         # Load trajectory data
