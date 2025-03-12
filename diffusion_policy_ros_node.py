@@ -59,7 +59,7 @@ def set_robot_state(robot, q: np.ndarray) -> None:
 
 
 class PolicyInferenceNode:
-    def __init__(self, model_path: str):
+    def __init__(self):
         """
         - Initializes ROS node.
         - Loads the diffusion policy.
@@ -116,11 +116,23 @@ class PolicyInferenceNode:
         # ------------------------------
         # Load the diffusion policy
         # ------------------------------
+        model_path = "/juno/u/oliviayl/repos/cross_embodiment/diffusion_policy/outputs/policies/snackbox_push_BC30_best_waypt.pth"
         self.policy = DiffusionUnetLowdimPolicy()
-        self.policy.load_state_dict(torch.load(model_path))
+        model_state_dict = torch.load(model_path)["model_state_dict"]
+        for k in model_state_dict.keys():
+            if k.startswith("normalizer"):
+                is_0_dim = len(model_state_dict[k].shape) == 0
+                if is_0_dim:
+                    model_state_dict[k] = model_state_dict[k].unsqueeze(0)
+                else:
+                    raise ValueError(f"Expected 0-dim normalizer, got {model_state_dict[k].shape}")
+        self.policy.load_state_dict(model_state_dict)
         self.policy.eval()
         rospy.loginfo(f"Loaded policy from {model_path}")
-        self.action_delta_scale = np.ones(23)  # TODO: hardcode this properly
+
+        action_scale_path = "/juno/u/oliviayl/repos/cross_embodiment/diffusion_policy/outputs/action_scales/snackbox_push_action_norm_scale_waypt.npz"
+        self.action_delta_scale = np.load(action_scale_path)["action_norm_scale"]
+        assert self.action_delta_scale.shape == (23,), f"Expected action_delta_scale shape of (23,), got {self.action_delta_scale.shape}"
 
         # ------------------------------
         # Publishers
@@ -225,7 +237,9 @@ class PolicyInferenceNode:
             with torch.no_grad():
                 raw_action_dict = self.policy.predict_action({"obs": obs_torch})
             raw_action_delta = raw_action_dict["action"].cpu().numpy().squeeze(0)
-            assert raw_action_delta.shape == (23,), f"Expected 23-dim action, got {raw_action_delta.shape}"
+            HORIZON_LEN = 8
+            assert raw_action_delta.shape == (HORIZON_LEN, 23), f"Expected ({HORIZON_LEN}, 23)-dim action, got {raw_action_delta.shape}"
+            raw_action_delta = raw_action_delta[0]
             scaled_action_delta = raw_action_delta * self.action_delta_scale
 
             # ------------------------------
@@ -279,7 +293,7 @@ class PolicyInferenceNode:
 
 
 def main():
-    node = PolicyInferenceNode(model_path="trained_policy.pth", rate_hz=15)
+    node = PolicyInferenceNode()
     node.run()
 
 if __name__ == '__main__':
