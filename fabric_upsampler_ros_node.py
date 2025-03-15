@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 
 import copy
+from typing import Optional
 
 import numpy as np
 import rospy
@@ -11,19 +12,33 @@ from print_utils import get_ros_loop_rate_str
 # Constants
 NUM_ARM_JOINTS = 7
 NUM_HAND_JOINTS = 16
+PUBLISH_RATE = 200  # Publish at 200 Hz
 INTERPOLATION_DT = 1.0 / 120.0  # Time to reach the new target (seconds)
-
 MAX_DT_COMMAND_SEC = 0.5  # Maximum time to wait for a new command (seconds)
 
 
-class FabricUpsampler:
+class FabricUpsamplerNode:
     def __init__(self):
-        rospy.init_node("fabric_upsampler")
+        rospy.init_node("fabric_upsampler_node", anonymous=True)
 
-        # ROS subscribers and publishers
+        # Subscriptions:
+        # 1) Fabric state
         self.fabric_sub = rospy.Subscriber(
-            "/fabric_state", JointState, self.fabric_callback
+            "/fabric_state", JointState, self.fabric_state_callback, queue_size=1
         )
+
+        # 2) Current robot states
+        self.iiwa_state_sub = rospy.Subscriber(
+            "/iiwa/joint_states", JointState, self.iiwa_state_callback, queue_size=1
+        )
+        self.allegro_state_sub = rospy.Subscriber(
+            "/allegroHand_0/joint_states",
+            JointState,
+            self.allegro_state_callback,
+            queue_size=1,
+        )
+
+        # Publishers:
         self.iiwa_cmd_pub = rospy.Publisher(
             "/iiwa/joint_cmd", JointState, queue_size=10
         )
@@ -31,109 +46,137 @@ class FabricUpsampler:
             "/allegroHand_0/joint_cmd", JointState, queue_size=10
         )
 
-        # ROS rate
-        self.rate = rospy.Rate(200)  # 200 Hz
+        # Store the latest states from the robot
+        self.current_iiwa_pos: Optional[np.ndarray] = (
+            None  # Latest /iiwa/joint_states positions
+        )
+        self.current_allegro_pos: Optional[np.ndarray] = (
+            None  # Latest /allegroHand_0/joint_states positions
+        )
+        self.current_joint_pos: Optional[np.ndarray] = (
+            None  # Combined positions (arm+hand) of length (7+16)
+        )
 
-        # Last published commands
-        self.last_published_iiwa_cmd_pos = np.zeros(NUM_ARM_JOINTS)
-        self.last_published_allegro_cmd_pos = np.zeros(NUM_HAND_JOINTS)
+        # Interpolation variables
+        self.interp_joint_pos_start: Optional[np.ndarray] = None
+        self.interp_joint_pos_end: Optional[np.ndarray] = None
+        self.interp_joint_pos_curr: Optional[np.ndarray] = None
+        self.latest_fabric_msg_time: Optional[rospy.Time] = None
 
-        # Latest fabric command
-        self.last_fabric_msg = None
-        self.last_command_time = None
+        # Set up the publish rate
+        self.loop_rate = rospy.Rate(PUBLISH_RATE)
 
-        # Wait for the first fabric message
+        # Wait until we have some initial robot state before proceeding
+        rospy.loginfo(
+            "FabricUpsamplerNode: Waiting for initial /iiwa/joint_states and /allegroHand_0/joint_states..."
+        )
         while not rospy.is_shutdown():
-            if self.last_fabric_msg is not None and self.last_command_time is not None:
-                rospy.loginfo("Got the first fabric message")
+            if self.current_joint_pos is not None:
+                rospy.loginfo("FabricUpsamplerNode: Received initial robot states.")
                 break
-
-            rospy.loginfo(
-                f"Waiting: self.last_fabric_msg={self.last_fabric_msg}, self.last_command_time={self.last_command_time}"
-            )
             rospy.sleep(0.1)
 
-    def fabric_callback(self, msg: JointState):
-        self.last_fabric_msg = msg
-        self.last_command_time = rospy.Time.now()
+    def iiwa_state_callback(self, msg: JointState):
+        """Callback for /iiwa/joint_states."""
+        if len(msg.position) < NUM_ARM_JOINTS:
+            rospy.logwarn(
+                "FabricUpsamplerNode: /iiwa/joint_states has fewer positions than expected."
+            )
+            return
+        self.current_iiwa_pos = np.array(msg.position[:NUM_ARM_JOINTS])
+
+        self.update_latest_robot_pos()
+
+    def allegro_state_callback(self, msg: JointState):
+        """Callback for /allegroHand_0/joint_states."""
+        if len(msg.position) < NUM_HAND_JOINTS:
+            rospy.logwarn(
+                "FabricUpsamplerNode: /allegroHand_0/joint_states has fewer positions than expected."
+            )
+            return
+        self.current_allegro_pos = np.array(msg.position[:NUM_HAND_JOINTS])
+
+        self.update_latest_robot_pos()
+
+    def update_latest_robot_pos(self):
+        """
+        If we have both current_iiwa_pos and current_allegro_pos,
+        combine them into one array for convenience.
+        """
+        if self.current_iiwa_pos is not None and self.current_allegro_pos is not None:
+            self.current_joint_pos = np.concatenate(
+                (self.current_iiwa_pos, self.current_allegro_pos)
+            )
+
+    def fabric_state_callback(self, msg: JointState):
+        """
+        Callback for /fabric_state.
+        """
+        if len(msg.position) < (NUM_ARM_JOINTS + NUM_HAND_JOINTS):
+            rospy.logwarn(
+                "FabricUpsamplerNode: /fabric_state has fewer positions than expected."
+            )
+            return
+
+        # The new "end" position for interpolation
+        fabric_positions = np.array(msg.position[: NUM_ARM_JOINTS + NUM_HAND_JOINTS])
+
+        # If we haven't interpolated before, our 'start' is the robot's actual latest position
+        if self.interp_joint_pos_curr is None:
+            # This also implies we were waiting for a fabric target
+            # and want to begin from the robot's current state
+            if self.current_joint_pos is None:
+                # If we still don't have a robot state, can't do much
+                rospy.logwarn(
+                    "FabricUpsamplerNode: No robot state available yet; ignoring fabric target."
+                )
+                return
+            self.interp_joint_pos_start = copy.deepcopy(self.current_joint_pos)
+            self.interp_joint_pos_curr = copy.deepcopy(self.current_joint_pos)
+        else:
+            # Otherwise, we shift our start to our current interpolation value
+            self.interp_joint_pos_start = copy.deepcopy(self.interp_joint_pos_curr)
+
+        self.interp_joint_pos_end = fabric_positions
+        self.latest_fabric_msg_time = rospy.Time.now()
 
     def run(self):
-        assert self.last_fabric_msg is not None
-        assert self.last_command_time is not None
+        """Main run loop of the interpolator."""
+
+        while (
+            self.interp_joint_pos_start is None
+            or self.interp_joint_pos_end is None
+            or self.interp_joint_pos_curr is None
+            or self.latest_fabric_msg_time is None
+        ):
+            rospy.loginfo(
+                f"FabricUpsamplerNode: Waiting: self.interp_joint_pos_start = {self.interp_joint_pos_start}, self.interp_joint_pos_end = {self.interp_joint_pos_end}, self.interp_joint_pos_curr = {self.interp_joint_pos_curr}, self.latest_fabric_msg_time = {self.latest_fabric_msg_time}"
+            )
+            self.loop_rate.sleep()
 
         while not rospy.is_shutdown():
             start_time = rospy.Time.now()
-            last_fabric_msg = copy.deepcopy(self.last_fabric_msg)
-            last_command_time = copy.copy(self.last_command_time)
 
-            # Calculate the elapsed time since the last command was received
-            dt = (start_time - last_command_time).to_sec()
-
+            # Check how long it has been since we got the last /fabric_state command
+            dt = (start_time - self.latest_fabric_msg_time).to_sec()
             if dt > MAX_DT_COMMAND_SEC:
                 rospy.logerr(
-                    f"Did not receive command for {dt} seconds. Stopping the upsampler."
+                    f"FabricUpsamplerNode: No new /fabric_state message for {dt:.2f} seconds. Shutting down."
                 )
                 return
 
-            # Compute the interpolation factor (alpha) clipped between 0 and 1
-            alpha = np.clip(dt / INTERPOLATION_DT, a_min=0, a_max=1)
+            # Compute interpolation factor
+            alpha = np.clip(dt / INTERPOLATION_DT, 0.0, 1.0)
 
-            # Extract the latest fabric joint states
-            fabric_pos = np.array(last_fabric_msg.position)
-            iiwa_target_pos = fabric_pos[:NUM_ARM_JOINTS]
-            allegro_target_pos = fabric_pos[
-                NUM_ARM_JOINTS : NUM_ARM_JOINTS + NUM_HAND_JOINTS
-            ]
+            self.interp_joint_pos_curr = (
+                1.0 - alpha
+            ) * self.interp_joint_pos_start + alpha * self.interp_joint_pos_end
 
-            fabric_vel = np.array(last_fabric_msg.velocity)
-            iiwa_target_vel = fabric_vel[:NUM_ARM_JOINTS]
-            _allegro_target_vel = fabric_vel[
-                NUM_ARM_JOINTS : NUM_ARM_JOINTS + NUM_HAND_JOINTS
-            ]
-
-            fabric_name = last_fabric_msg.name
-            iiwa_name = fabric_name[:NUM_ARM_JOINTS]
-            allegro_name = fabric_name[
-                NUM_ARM_JOINTS : NUM_ARM_JOINTS + NUM_HAND_JOINTS
-            ]
-
-            # Interpolate
-            iiwa_interpolated_pos = (
-                1 - alpha
-            ) * self.last_published_iiwa_cmd_pos + alpha * iiwa_target_pos
-
-            # Interpolate allegro joint
-            allegro_interpolated_pos = (
-                1 - alpha
-            ) * self.last_published_allegro_cmd_pos + alpha * allegro_target_pos
-
-            # Update the stored last commands
-            self.last_published_iiwa_cmd_pos = iiwa_interpolated_pos
-            self.last_published_allegro_cmd_pos = allegro_interpolated_pos
-
-            timestamp = rospy.Time.now()
-
-            # Create and publish iiwa command message
-            iiwa_msg = JointState()
-            iiwa_msg.header.stamp = timestamp
-            iiwa_msg.name = iiwa_name
-            iiwa_msg.position = iiwa_interpolated_pos.tolist()
-            iiwa_msg.velocity = iiwa_target_vel.tolist()  # Keep uninterpolated velocity
-            iiwa_msg.effort = []  # No effort information
-            self.iiwa_cmd_pub.publish(iiwa_msg)
-
-            # Create and publish allegro command message
-            allegro_msg = JointState()
-            allegro_msg.header.stamp = timestamp
-            allegro_msg.name = allegro_name
-            allegro_msg.position = allegro_interpolated_pos.tolist()
-            allegro_msg.velocity = []  # Leave velocity as empty
-            allegro_msg.effort = []  # Leave effort as empty
-            self.allegro_cmd_pub.publish(allegro_msg)
+            self.publish_commands(self.interp_joint_pos_curr)
 
             # Sleep to maintain the loop rate
             before_sleep_time = rospy.Time.now()
-            self.rate.sleep()
+            self.loop_rate.sleep()
             after_sleep_time = rospy.Time.now()
             rospy.loginfo(
                 get_ros_loop_rate_str(
@@ -144,10 +187,41 @@ class FabricUpsampler:
                 )
             )
 
+    def publish_commands(self, full_pos_array: np.ndarray):
+        """
+        Publish to /iiwa/joint_cmd (first 7) and /allegroHand_0/joint_cmd (next 16).
+        We leave velocity and effort empty, though you could populate if needed.
+        """
+        now = rospy.Time.now()
 
-if __name__ == "__main__":
+        # Arm command
+        iiwa_msg = JointState()
+        iiwa_msg.header.stamp = now
+        iiwa_msg.name = [f"iiwa_joint_{i}" for i in range(NUM_ARM_JOINTS)]
+        iiwa_msg.position = full_pos_array[:NUM_ARM_JOINTS].tolist()
+        iiwa_msg.velocity = []
+        iiwa_msg.effort = []
+        self.iiwa_cmd_pub.publish(iiwa_msg)
+
+        # Hand command
+        allegro_msg = JointState()
+        allegro_msg.header.stamp = now
+        allegro_msg.name = [f"allegro_joint_{i}" for i in range(NUM_HAND_JOINTS)]
+        allegro_msg.position = full_pos_array[
+            NUM_ARM_JOINTS : NUM_ARM_JOINTS + NUM_HAND_JOINTS
+        ].tolist()
+        allegro_msg.velocity = []
+        allegro_msg.effort = []
+        self.allegro_cmd_pub.publish(allegro_msg)
+
+
+def main():
     try:
-        fabric_upsampler = FabricUpsampler()
-        fabric_upsampler.run()
+        node = FabricUpsamplerNode()
+        node.run()
     except rospy.ROSInterruptException:
         pass
+
+
+if __name__ == "__main__":
+    main()
